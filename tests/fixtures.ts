@@ -1,0 +1,50 @@
+import type { Interaction, Situation } from '@/types'
+
+export const baseSituation: Situation = {
+  id: '11111111-1111-4111-8111-111111111111',
+  user_id: '22222222-2222-4222-8222-222222222222',
+  name: 'Alex',
+  avatar_emoji: '🧑',
+  stage: 'talking',
+  emotional_invest: 7,
+  compatibility: 62,
+  first_contact: '2026-05-01',
+  last_interaction: '2026-05-30',
+  vibe: 'warm',
+  red_flags: ['Cancels last minute'],
+  green_flags: ['Communicates clearly'],
+  notes: 'Good chemistry, inconsistent planning.',
+  contact_method: 'instagram',
+  is_archived: false,
+  is_breakup_mode: false,
+  no_contact_started: null,
+  no_contact_reasons: [],
+  recovery_milestones: [],
+  memory_summary: null,
+  private_vault: '',
+  created_at: '2026-05-01T00:00:00.000Z',
+  updated_at: '2026-05-30T00:00:00.000Z',
+}
+
+export const baseInteractions: Interaction[] = [
+  {
+    id: '33333333-3333-4333-8333-333333333333',
+    situation_id: baseSituation.id,
+    user_id: baseSituation.user_id,
+    type: 'message',
+    note: 'Warm check-in',
+    sentiment: 'positive',
+    date: '2026-05-28',
+    created_at: '2026-05-28T00:00:00.000Z',
+  },
+  {
+    id: '44444444-4444-4444-8444-444444444444',
+    situation_id: baseSituation.id,
+    user_id: baseSituation.user_id,
+    type: 'left_on_read',
+    note: 'No reply for a while',
+    sentiment: 'negative',
+    date: '2026-05-30',
+    created_at: '2026-05-30T00:00:00.000Z',
+  },
+]

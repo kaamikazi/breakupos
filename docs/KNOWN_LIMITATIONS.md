@@ -1,0 +1,42 @@
+# Known Limitations
+
+Breakup OS Dating is private-beta software. These limitations should be understood before inviting real testers.
+
+## Security And Privacy
+
+- The local PIN and private vault are convenience controls, not cryptographic security.
+- Profile photos use the Supabase `profile-photos` bucket. The current beta assumes a public bucket unless you configure a private/signed URL strategy.
+- Rate limits are in-memory. They reset on server restart and do not coordinate across multiple server instances.
+- Screenshots for message analysis are previewed locally and are not stored by default, but OCR is not fully integrated.
+- Export/delete is designed to cover app data, but storage deletion should be manually verified in Supabase before beta launch.
+
+## Product Behavior
+
+- OCR is placeholder/manual fallback. Users must paste extracted text if no OCR provider is configured.
+- Email and push notifications are not implemented. Notifications are in-app only.
+- Moderation is basic. Admins can review reports, update status, add notes, and use simple block actions, but there is no full moderation queue workflow yet.
+- Relationship reports are printable HTML, not server-rendered PDFs.
+- Profile boost is a placeholder and does not change ranking.
+- Who-liked-you is gated and may be placeholder-level depending on plan and implementation state.
+- Verification is a trust badge placeholder. There is no selfie, video, or ID verification yet.
+
+## AI Limits
+
+- AI can be wrong, incomplete, biased, or overconfident.
+- AI analysis is not scientific compatibility scoring.
+- AI reply suggestions should be reviewed by the user before sending.
+- AI features should not be used for manipulation, pressure, harassment, stalking, coercion, or sexual content.
+
+## Safety Limits
+
+- Breakup OS Dating is not therapy.
+- Breakup OS Dating is not legal advice.
+- Breakup OS Dating is not crisis support.
+- Users in immediate danger or crisis should contact local emergency services or a qualified crisis resource.
+- Reports and blocks are safety tools, not a guarantee that harmful users are fully removed from every possible path.
+
+## Deployment Limits
+
+- Supabase RLS, Storage policies, Stripe webhooks, Realtime, and environment variables must be verified in the deployed environment.
+- Local test success does not guarantee production configuration is correct.
+- Browser/device QA is still required before sending invites.

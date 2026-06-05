@@ -1,0 +1,18 @@
+{
+  "framework": "nextjs",
+  "regions": ["iad1"],
+  "functions": {
+    "app/api/advisor/route.ts": { "maxDuration": 30 },
+    "app/api/message-analyzer/route.ts": { "maxDuration": 30 },
+    "app/api/reports/generate/route.ts": { "maxDuration": 45 },
+    "app/api/weekly-summary/generate/route.ts": { "maxDuration": 45 },
+    "app/api/webhooks/stripe/route.ts": { "maxDuration": 30 },
+    "app/api/cron/reset-quotas/route.ts": { "maxDuration": 60 }
+  },
+  "crons": [
+    {
+      "path": "/api/cron/reset-quotas",
+      "schedule": "5 0 1 * *"
+    }
+  ]
+}
