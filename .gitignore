@@ -44,3 +44,7 @@ next-env.d.ts
 .env.local
 .env*.local
 .env
+
+.next-dev.err.log
+.next-dev.out.log
+*.log
