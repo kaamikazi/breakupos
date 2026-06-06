@@ -11,7 +11,7 @@ Use `.env.example` as the source template for local setup.
 | `NEXT_PUBLIC_SUPABASE_URL` | Yes | Supabase project URL |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Yes | Supabase anon key |
 | `SUPABASE_SERVICE_ROLE_KEY` | Yes | Server-only key. Never expose client-side. |
-| `NEXT_PUBLIC_APP_URL` | Yes | Production app URL, e.g. `https://app.example.com` |
+| `NEXT_PUBLIC_APP_URL` | Yes | Production app URL, e.g. `https://breakupos-beta.vercel.app` |
 | `ANTHROPIC_API_KEY` | Recommended | Enables AI advisor, reports, analyzer, weekly summaries |
 | `STRIPE_SECRET_KEY` | Billing | Required for checkout |
 | `STRIPE_WEBHOOK_SECRET` | Billing | Required for webhook verification |
@@ -26,7 +26,9 @@ Use `.env.example` as the source template for local setup.
 
 1. Create a Supabase project.
 2. Enable auth providers used by the app: Google and/or GitHub.
-3. Add redirect URL: `https://your-domain.com/auth/callback`.
+3. Add redirect URLs for the deployed app:
+   - `https://breakupos-beta.vercel.app/auth/callback`
+   - `https://breakupos-beta.vercel.app/auth/callback/client`
 4. Run `supabase/schema.sql` in the SQL editor.
 5. Confirm RLS is enabled on:
    - `profiles`
