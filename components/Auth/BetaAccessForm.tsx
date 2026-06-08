@@ -1,8 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { InlineAlert } from '@/components/shared/InlineAlert'
 import { toast } from 'sonner'
 
@@ -13,7 +11,8 @@ export function BetaAccessForm() {
   const [success, setSuccess] = useState(false)
 
   const submit = async () => {
-    if (!code.trim() || loading) return
+    const trimmed = code.trim()
+    if (!trimmed || loading) return
     setLoading(true)
     setError(null)
     setSuccess(false)
@@ -21,7 +20,7 @@ export function BetaAccessForm() {
       const res = await fetch('/api/beta/verify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ code }),
+        body: JSON.stringify({ code: trimmed }),
       })
       const data = await res.json()
       if (!res.ok) {
@@ -32,18 +31,14 @@ export function BetaAccessForm() {
       }
       setSuccess(true)
       toast.success('Beta access unlocked')
-      // Cookie is already set server-side (httpOnly) from the API response
       window.location.replace('/auth')
     } catch {
-      setError('Could not verify beta access. Check your connection and try again.')
-      toast.error('Could not verify beta access')
+      const msg = 'Could not verify beta access. Check your connection and try again.'
+      setError(msg)
+      toast.error(msg)
     } finally {
       setLoading(false)
     }
-  }
-
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter') submit()
   }
 
   return (
@@ -51,13 +46,19 @@ export function BetaAccessForm() {
       <InlineAlert tone="info">
         BreakupOS is in private beta. Enter your invite code to unlock sign-in. Existing signed-in beta users can continue normally.
       </InlineAlert>
-      <Input
+
+      {/* Native input — avoids @base-ui/react onChange issues */}
+      <input
         value={code}
         onChange={e => setCode(e.target.value)}
-        onKeyDown={handleKeyDown}
+        onKeyDown={e => e.key === 'Enter' && submit()}
         placeholder="Beta access code"
-        className="bg-zinc-900 border-zinc-700 text-white"
+        type="text"
+        autoComplete="off"
+        disabled={loading}
+        className="h-10 w-full rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-white placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-pink-500 disabled:opacity-50"
       />
+
       {error && (
         <InlineAlert tone="warning" title="Code did not work">
           {error}
@@ -68,14 +69,16 @@ export function BetaAccessForm() {
           Sending you to sign in now.
         </InlineAlert>
       )}
-      <Button
+
+      {/* Native button — avoids @base-ui/react form-submit issues */}
+      <button
         type="button"
         onClick={submit}
         disabled={loading || !code.trim()}
-        className="w-full bg-pink-500 hover:bg-pink-600 text-white"
+        className="h-11 w-full rounded-lg bg-pink-500 px-4 text-sm font-medium text-white transition-colors hover:bg-pink-600 disabled:pointer-events-none disabled:opacity-50"
       >
         {loading ? 'Checking...' : 'Unlock beta access'}
-      </Button>
+      </button>
     </div>
   )
 }
