@@ -14,10 +14,13 @@ export default async function AuthPage({ searchParams }: AuthPageProps) {
   const params = await searchParams
   const code = typeof params?.code === 'string' ? params.code : null
   const error = typeof params?.error === 'string' ? params.error : null
+  const errorCode = typeof params?.error_code === 'string' ? params.error_code : null
+  const errorDescription = typeof params?.error_description === 'string' ? params.error_description : null
   const message = typeof params?.message === 'string' ? params.message : null
   const fallbackMessage = error === 'callback_error'
-    ? 'Google did not return a usable sign-in session. Open the beta link directly in Chrome or Safari, not Instagram or another in-app browser. Also confirm Supabase allows https://breakupos-beta.vercel.app/auth/callback and /auth/callback/client.'
-    : 'The OAuth callback could not create a session. Check the Supabase redirect URL and provider settings.'
+    ? 'Google did not return a usable sign-in session. Open the beta link directly in Chrome or Safari and try again.'
+    : 'The OAuth callback could not create a session.'
+  const errorMessage = errorDescription ?? message ?? fallbackMessage
   if (code) {
     const next = typeof params?.next === 'string' ? params.next : '/dashboard'
     redirect(`/auth/callback?code=${encodeURIComponent(code)}&next=${encodeURIComponent(next)}`)
@@ -54,7 +57,22 @@ export default async function AuthPage({ searchParams }: AuthPageProps) {
         {error && (
           <div className="mt-4">
             <InlineAlert tone="warning" title="Sign-in did not finish">
-              {message ?? fallbackMessage}
+              <div className="space-y-3">
+                <p>{errorMessage}</p>
+                {(error || errorCode) && (
+                  <p className="text-xs text-amber-100/70">
+                    Error: {[error, errorCode].filter(Boolean).join(' / ')}
+                  </p>
+                )}
+                <div className="flex flex-wrap gap-3">
+                  <a href="/auth" className="inline-flex text-xs font-semibold text-amber-100 underline">
+                    Clear this error
+                  </a>
+                  <a href="/auth/login?provider=google" className="inline-flex text-xs font-semibold text-amber-100 underline">
+                    Try Google fallback
+                  </a>
+                </div>
+              </div>
             </InlineAlert>
           </div>
         )}
