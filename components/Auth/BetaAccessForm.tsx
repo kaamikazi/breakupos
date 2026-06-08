@@ -12,8 +12,8 @@ export function BetaAccessForm() {
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
 
-  const submit = async (e: React.FormEvent) => {
-    e.preventDefault()
+  const submit = async () => {
+    if (!code.trim() || loading) return
     setLoading(true)
     setError(null)
     setSuccess(false)
@@ -32,7 +32,7 @@ export function BetaAccessForm() {
       }
       setSuccess(true)
       toast.success('Beta access unlocked')
-      document.cookie = 'breakupos_beta_access=granted; path=/; max-age=7776000; SameSite=Lax'
+      // Cookie is already set server-side (httpOnly) from the API response
       window.location.replace('/auth')
     } catch {
       setError('Could not verify beta access. Check your connection and try again.')
@@ -42,14 +42,19 @@ export function BetaAccessForm() {
     }
   }
 
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') submit()
+  }
+
   return (
-    <form onSubmit={submit} className="space-y-4">
+    <div className="space-y-4">
       <InlineAlert tone="info">
         BreakupOS is in private beta. Enter your invite code to unlock sign-in. Existing signed-in beta users can continue normally.
       </InlineAlert>
       <Input
         value={code}
         onChange={e => setCode(e.target.value)}
+        onKeyDown={handleKeyDown}
         placeholder="Beta access code"
         className="bg-zinc-900 border-zinc-700 text-white"
       />
@@ -63,9 +68,14 @@ export function BetaAccessForm() {
           Sending you to sign in now.
         </InlineAlert>
       )}
-      <Button type="submit" disabled={loading || !code.trim()} className="w-full bg-pink-500 hover:bg-pink-600 text-white">
+      <Button
+        type="button"
+        onClick={submit}
+        disabled={loading || !code.trim()}
+        className="w-full bg-pink-500 hover:bg-pink-600 text-white"
+      >
         {loading ? 'Checking...' : 'Unlock beta access'}
       </Button>
-    </form>
+    </div>
   )
 }
