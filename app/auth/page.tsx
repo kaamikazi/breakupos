@@ -15,6 +15,9 @@ export default async function AuthPage({ searchParams }: AuthPageProps) {
   const code = typeof params?.code === 'string' ? params.code : null
   const error = typeof params?.error === 'string' ? params.error : null
   const message = typeof params?.message === 'string' ? params.message : null
+  const fallbackMessage = error === 'callback_error'
+    ? 'Google did not return a usable sign-in session. Open the beta link directly in Chrome or Safari, not Instagram or another in-app browser. Also confirm Supabase allows https://breakupos-beta.vercel.app/auth/callback and /auth/callback/client.'
+    : 'The OAuth callback could not create a session. Check the Supabase redirect URL and provider settings.'
   if (code) {
     const next = typeof params?.next === 'string' ? params.next : '/dashboard'
     redirect(`/auth/callback?code=${encodeURIComponent(code)}&next=${encodeURIComponent(next)}`)
@@ -51,7 +54,7 @@ export default async function AuthPage({ searchParams }: AuthPageProps) {
         {error && (
           <div className="mt-4">
             <InlineAlert tone="warning" title="Sign-in did not finish">
-              {message ?? 'The OAuth callback could not create a session. Check the Supabase redirect URL and provider settings.'}
+              {message ?? fallbackMessage}
             </InlineAlert>
           </div>
         )}

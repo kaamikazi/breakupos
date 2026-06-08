@@ -38,5 +38,13 @@ export async function GET(req: NextRequest) {
     return NextResponse.redirect(fallbackUrl)
   }
 
-  return NextResponse.redirect(`${appUrl}/auth?error=callback_error`)
+  const errorUrl = new URL('/auth', appUrl)
+  errorUrl.searchParams.set('error', 'callback_error')
+  errorUrl.searchParams.set(
+    'message',
+    searchParams.get('error_description') ??
+      searchParams.get('error') ??
+      'Google did not return a sign-in code. If you opened this from Instagram, copy the link and open it in Chrome or Safari.'
+  )
+  return NextResponse.redirect(errorUrl)
 }

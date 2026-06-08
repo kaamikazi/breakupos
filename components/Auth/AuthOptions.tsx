@@ -2,9 +2,19 @@
 
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
+import { InlineAlert } from '@/components/shared/InlineAlert'
+
+function isInAppBrowser() {
+  if (typeof navigator === 'undefined') return false
+  const ua = navigator.userAgent.toLowerCase()
+  return ua.includes('instagram') || ua.includes('fbav') || ua.includes('fban') || ua.includes('tiktok') || ua.includes('line/')
+}
 
 export function AuthOptions() {
   const [loading, setLoading] = useState<'github' | 'google' | null>(null)
+  const [copied, setCopied] = useState(false)
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://breakupos-beta.vercel.app'
+  const inAppBrowser = isInAppBrowser()
 
   const signIn = async (provider: 'github' | 'google') => {
     setLoading(provider)
@@ -13,6 +23,21 @@ export function AuthOptions() {
 
   return (
     <div className="space-y-3">
+      {inAppBrowser && (
+        <InlineAlert tone="warning" title="Open in your browser first">
+          Instagram/TikTok in-app browsers can block Google sign-in cookies. Open this page in Chrome or Safari, then sign in.
+          <button
+            type="button"
+            onClick={async () => {
+              await navigator.clipboard?.writeText(appUrl)
+              setCopied(true)
+            }}
+            className="mt-2 block text-xs font-semibold text-yellow-100 underline"
+          >
+            {copied ? 'Link copied' : 'Copy beta link'}
+          </button>
+        </InlineAlert>
+      )}
       <Button
         onClick={() => signIn('github')}
         disabled={loading !== null}
