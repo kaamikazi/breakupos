@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { cookies } from 'next/headers'
 import { z } from 'zod'
 import { BETA_ACCESS_COOKIE, hasValidBetaAccessCode, isBetaAccessEnabled } from '@/lib/beta'
 import { jsonError, parseJson } from '@/lib/api'
@@ -20,8 +19,8 @@ export async function POST(req: NextRequest) {
     return jsonError('That beta access code does not look right.', 403)
   }
 
-  const cookieStore = await cookies()
-  cookieStore.set(BETA_ACCESS_COOKIE, 'granted', {
+  const response = NextResponse.json({ success: true })
+  response.cookies.set(BETA_ACCESS_COOKIE, 'granted', {
     httpOnly: true,
     sameSite: 'lax',
     secure: process.env.NODE_ENV === 'production',
@@ -29,5 +28,5 @@ export async function POST(req: NextRequest) {
     maxAge: 60 * 60 * 24 * 90,
   })
 
-  return NextResponse.json({ success: true })
+  return response
 }
