@@ -15,7 +15,7 @@ export async function POST(req: NextRequest) {
   if (!user) return jsonError('Unauthorized', 401)
   if (!(await isProUser(user.id))) return jsonError('Weekly AI Coach Summary is a Pro feature.', 403)
 
-  const limit = rateLimit(`weekly:${user.id}:${getClientIp(req)}`, 8, 60 * 60 * 1000)
+  const limit = await rateLimit(`weekly:${user.id}:${getClientIp(req)}`, 8, 60 * 60 * 1000)
   if (limit.limited) return jsonError('Weekly summary rate limit reached. Try again later.', 429)
 
   const parsed = await parseJson(req, summaryRequestSchema)

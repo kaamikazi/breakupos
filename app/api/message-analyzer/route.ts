@@ -10,7 +10,7 @@ export async function POST(req: NextRequest) {
 
   if (!user) return jsonError('Unauthorized', 401)
 
-  const limit = rateLimit(`analyzer:${user.id}:${getClientIp(req)}`, 20, 60 * 60 * 1000)
+  const limit = await rateLimit(`analyzer:${user.id}:${getClientIp(req)}`, 20, 60 * 60 * 1000)
   if (limit.limited) return jsonError('Message analyzer rate limit reached. Try again later.', 429)
 
   const { data: profile } = await supabase

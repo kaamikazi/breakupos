@@ -15,7 +15,7 @@ export async function POST(req: NextRequest) {
   if (!user) return jsonError('Unauthorized', 401)
   if (!(await isProUser(user.id))) return jsonError('Relationship Reports are a Pro feature.', 403)
 
-  const limit = rateLimit(`report:${user.id}:${getClientIp(req)}`, 10, 60 * 60 * 1000)
+  const limit = await rateLimit(`report:${user.id}:${getClientIp(req)}`, 10, 60 * 60 * 1000)
   if (limit.limited) return jsonError('Report generation rate limit reached. Try again later.', 429)
 
   const parsed = await parseJson(req, reportRequestSchema)

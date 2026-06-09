@@ -17,7 +17,7 @@ export async function POST(req: NextRequest, { params }: ReplyHelperRouteProps) 
   if (!user) return jsonError('Unauthorized', 401)
   if (!(await isProUser(user.id))) return jsonError('Dating AI Reply Helper is a Pro feature.', 403)
 
-  const limit = rateLimit(`dating-reply:${user.id}:${getClientIp(req)}`, 20, 60 * 60 * 1000)
+  const limit = await rateLimit(`dating-reply:${user.id}:${getClientIp(req)}`, 20, 60 * 60 * 1000)
   if (limit.limited) return jsonError('Reply helper rate limit reached. Try again later.', 429)
 
   const parsed = await parseJson(req, replyHelperSchema)

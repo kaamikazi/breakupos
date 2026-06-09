@@ -9,7 +9,7 @@ export async function POST(req: NextRequest) {
 
   if (!user) return jsonError('Unauthorized', 401)
 
-  const limit = rateLimit(`dating-block:${user.id}:${getClientIp(req)}`, 30, 60 * 60 * 1000)
+  const limit = await rateLimit(`dating-block:${user.id}:${getClientIp(req)}`, 30, 60 * 60 * 1000)
   if (limit.limited) return jsonError('Block rate limit reached. Try again later.', 429)
 
   const parsed = await parseJson(req, datingActionSchema)

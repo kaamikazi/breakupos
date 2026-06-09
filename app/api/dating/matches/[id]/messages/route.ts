@@ -56,7 +56,7 @@ export async function POST(req: NextRequest, { params }: MessagesRouteProps) {
 
   if (!user) return jsonError('Unauthorized', 401)
 
-  const limit = rateLimit(`dating-message:${user.id}:${getClientIp(req)}`, 120, 60 * 60 * 1000)
+  const limit = await rateLimit(`dating-message:${user.id}:${getClientIp(req)}`, 120, 60 * 60 * 1000)
   if (limit.limited) return jsonError('Message rate limit reached. Try again later.', 429)
 
   const parsed = await parseJson(req, chatMessageSchema)

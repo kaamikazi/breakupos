@@ -23,7 +23,7 @@ export async function POST(req: NextRequest) {
 
   await ensureProfileForUser(user)
 
-  const limit = rateLimit(`advisor:${user.id}:${getClientIp(req)}`, 30, 60 * 60 * 1000)
+  const limit = await rateLimit(`advisor:${user.id}:${getClientIp(req)}`, 30, 60 * 60 * 1000)
   if (limit.limited) return jsonError('AI advisor rate limit reached. Try again later.', 429)
 
   const canUse = await checkAIQuota(user.id)

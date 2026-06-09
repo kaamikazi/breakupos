@@ -17,7 +17,7 @@ export async function POST(req: NextRequest, { params }: AnalyzeRouteProps) {
   if (!user) return jsonError('Unauthorized', 401)
   if (!(await isProUser(user.id))) return jsonError('Dating chat analysis is a Pro feature.', 403)
 
-  const limit = rateLimit(`dating-chat-analysis:${user.id}:${getClientIp(req)}`, 20, 60 * 60 * 1000)
+  const limit = await rateLimit(`dating-chat-analysis:${user.id}:${getClientIp(req)}`, 20, 60 * 60 * 1000)
   if (limit.limited) return jsonError('Chat analysis rate limit reached. Try again later.', 429)
 
   const serviceClient = createServiceClient()
