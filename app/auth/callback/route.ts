@@ -31,11 +31,10 @@ export async function GET(req: NextRequest) {
       return response
     }
 
-    const fallbackUrl = new URL('/auth/callback/client', appUrl)
-    fallbackUrl.searchParams.set('code', code)
-    fallbackUrl.searchParams.set('next', next)
-    fallbackUrl.searchParams.set('server_error', error.message)
-    return NextResponse.redirect(fallbackUrl)
+    const errorUrl = new URL('/auth', appUrl)
+    errorUrl.searchParams.set('error', 'callback_error')
+    errorUrl.searchParams.set('message', error.message)
+    return NextResponse.redirect(errorUrl)
   }
 
   const errorUrl = new URL('/auth', appUrl)

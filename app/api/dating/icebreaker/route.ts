@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { anthropic, ADVISOR_SYSTEM_PROMPT } from '@/lib/anthropic'
+import { anthropic, extractText, ADVISOR_SYSTEM_PROMPT } from '@/lib/anthropic'
 import { getClientIp, jsonError, parseJson, rateLimit } from '@/lib/api'
 import { buildIcebreakerPrompt, getIcebreakerFallback, icebreakerSchema } from '@/lib/dating-premium'
 import { isProUser } from '@/lib/premium'
@@ -51,9 +51,7 @@ You write respectful dating-app first messages. Never generate sexual, manipulat
     messages: [{ role: 'user', content: buildIcebreakerPrompt(targetProfile, parsed.data.tone) }],
   })
 
-  const suggestion = response.content[0].type === 'text'
-    ? response.content[0].text
-    : getIcebreakerFallback(targetProfile, parsed.data.tone)
+  const suggestion = extractText(response) || getIcebreakerFallback(targetProfile, parsed.data.tone)
 
   return NextResponse.json({ suggestion, fallback: false })
 }

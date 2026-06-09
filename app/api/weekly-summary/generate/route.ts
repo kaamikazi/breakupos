@@ -3,7 +3,7 @@ import { subDays, formatISO } from 'date-fns'
 import { createServerSupabaseClient, createServiceClient } from '@/lib/supabase-server'
 import { getClientIp, jsonError, parseJson, rateLimit } from '@/lib/api'
 import { isProUser } from '@/lib/premium'
-import { anthropic } from '@/lib/anthropic'
+import { anthropic, extractText } from '@/lib/anthropic'
 import { fallbackWeeklySummary, summaryRequestSchema, weeklyAiSchema } from '@/lib/weekly-summary'
 import { buildNotification } from '@/lib/notifications'
 import type { Interaction, Situation } from '@/types'
@@ -56,8 +56,11 @@ export async function POST(req: NextRequest) {
           }),
         }],
       })
-      const text = message.content[0].type === 'text' ? message.content[0].text : '{}'
-      const json = JSON.parse(text.slice(text.indexOf('{'), text.lastIndexOf('}') + 1))
+      const text = extractText(message) || '{}'
+      const start = text.indexOf('{')
+      const end = text.lastIndexOf('}')
+      if (start === -1 || end < start) throw new Error('No JSON in AI response')
+      const json = JSON.parse(text.slice(start, end + 1))
       const validated = weeklyAiSchema.safeParse(json)
       if (validated.success) summary = validated.data
     } catch {

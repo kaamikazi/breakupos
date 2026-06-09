@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createServerSupabaseClient, createServiceClient } from '@/lib/supabase-server'
 import { checkAIQuota, ensureProfileForUser } from '@/lib/quota'
-import { anthropic, ADVISOR_SYSTEM_PROMPT, SAFETY_DISCLAIMER } from '@/lib/anthropic'
+import { anthropic, extractText, ADVISOR_SYSTEM_PROMPT, SAFETY_DISCLAIMER } from '@/lib/anthropic'
 import { ADVICE_TYPE_VALUES, FIELD_LIMITS } from '@/lib/domain'
 import { getClientIp, jsonError, parseJson, rateLimit } from '@/lib/api'
 
@@ -101,7 +101,8 @@ Include this safety note when relevant: ${SAFETY_DISCLAIMER}`,
     messages: [{ role: 'user', content: contextBlock }],
   })
 
-  const advice = message.content[0].type === 'text' ? message.content[0].text : ''
+  const advice = extractText(message)
+  if (!advice) return jsonError('The AI advisor did not return a response. Please try again.', 502)
   const memorySummary = [
     situation.memory_summary,
     `${new Date().toISOString().split('T')[0]}: ${parsed.data.mode} / ${parsed.data.advice_type} - ${parsed.data.question.slice(0, 120)}`,

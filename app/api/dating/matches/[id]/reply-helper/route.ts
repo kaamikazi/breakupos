@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient, createServiceClient } from '@/lib/supabase-server'
-import { anthropic, ADVISOR_SYSTEM_PROMPT, SAFETY_DISCLAIMER } from '@/lib/anthropic'
+import { anthropic, extractText, ADVISOR_SYSTEM_PROMPT, SAFETY_DISCLAIMER } from '@/lib/anthropic'
 import { getClientIp, jsonError, parseJson, rateLimit } from '@/lib/api'
 import { isProUser } from '@/lib/premium'
 import { buildReplyHelperPrompt, getDeletedMessageDisplay, getOtherParticipantId, getReplyHelperFallback, isMatchParticipant, replyHelperSchema } from '@/lib/dating-chat'
@@ -62,6 +62,6 @@ Include safety guidance when relevant: ${SAFETY_DISCLAIMER}`,
     messages: [{ role: 'user', content: prompt }],
   })
 
-  const suggestion = response.content[0].type === 'text' ? response.content[0].text : getReplyHelperFallback(parsed.data.tone)
+  const suggestion = extractText(response) || getReplyHelperFallback(parsed.data.tone)
   return NextResponse.json({ suggestion, fallback: false })
 }

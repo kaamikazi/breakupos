@@ -6,6 +6,7 @@ import {
   datingProfileSchema,
   datingReportSchema,
   getOrderedMatchPair,
+  isSafePublicHttpsUrl,
   rankDiscoveryProfiles,
   splitInterests,
   splitPhotoUrls,
@@ -71,6 +72,36 @@ describe('dating domain', () => {
     expect(validateProfilePhotoFile({ type: 'image/jpeg', size: 1024 }).valid).toBe(true)
     expect(validateProfilePhotoFile({ type: 'image/gif', size: 1024 }).valid).toBe(false)
     expect(validateProfilePhotoFile({ type: 'image/png', size: 6 * 1024 * 1024 }).valid).toBe(false)
+  })
+
+  it('only accepts public https photo URLs (blocks SSRF / internal targets)', () => {
+    expect(isSafePublicHttpsUrl('https://cdn.example.com/a.jpg')).toBe(true)
+    // non-https
+    expect(isSafePublicHttpsUrl('http://example.com/a.jpg')).toBe(false)
+    // loopback / localhost
+    expect(isSafePublicHttpsUrl('https://localhost/a.jpg')).toBe(false)
+    expect(isSafePublicHttpsUrl('https://127.0.0.1/a.jpg')).toBe(false)
+    // cloud metadata endpoint
+    expect(isSafePublicHttpsUrl('https://169.254.169.254/latest/meta-data')).toBe(false)
+    // private ranges
+    expect(isSafePublicHttpsUrl('https://10.0.0.5/a.jpg')).toBe(false)
+    expect(isSafePublicHttpsUrl('https://192.168.1.10/a.jpg')).toBe(false)
+    expect(isSafePublicHttpsUrl('https://172.16.0.1/a.jpg')).toBe(false)
+    // garbage
+    expect(isSafePublicHttpsUrl('not a url')).toBe(false)
+  })
+
+  it('rejects dating profiles with unsafe photo URLs', () => {
+    const base = {
+      display_name: 'Tester',
+      age: 30,
+      gender: 'female',
+      interested_in: 'male',
+      relationship_goal: 'long_term',
+    }
+    expect(datingProfileSchema.safeParse({ ...base, photo_urls: ['http://example.com/a.jpg'] }).success).toBe(false)
+    expect(datingProfileSchema.safeParse({ ...base, photo_urls: ['https://169.254.169.254/x'] }).success).toBe(false)
+    expect(datingProfileSchema.safeParse({ ...base, photo_urls: ['https://cdn.example.com/a.jpg'] }).success).toBe(true)
   })
 
   it('scores profile quality and recommendations', () => {

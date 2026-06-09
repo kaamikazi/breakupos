@@ -4,6 +4,20 @@ export const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY!,
 })
 
+/**
+ * Safely extract concatenated text from a Claude message response.
+ * Guards against an empty/non-text content array (which would throw on
+ * `content[0].type`).
+ */
+export function extractText(message: { content?: Array<{ type: string; text?: string }> }): string {
+  if (!message?.content?.length) return ''
+  return message.content
+    .filter(block => block.type === 'text' && typeof block.text === 'string')
+    .map(block => block.text as string)
+    .join('\n')
+    .trim()
+}
+
 export const SAFETY_DISCLAIMER =
   'If this involves abuse, stalking, threats, harassment, self-harm, or immediate danger, prioritize safety: contact trusted people, local emergency services, or a qualified crisis resource. BreakupOS is not a substitute for professional help.'
 

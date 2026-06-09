@@ -74,6 +74,48 @@ export const DATING_LABELS = {
 
 const cleanedString = (max: number) => z.string().trim().max(max)
 
+/**
+ * Photo URLs are rendered as <img src> for other users to see, so they must be
+ * public https links. Reject http, localhost, .local, and private/loopback IP
+ * literals to avoid SSRF-style references and mixed-content leaks.
+ */
+export function isSafePublicHttpsUrl(value: string) {
+  let url: URL
+  try {
+    url = new URL(value)
+  } catch {
+    return false
+  }
+  if (url.protocol !== 'https:') return false
+
+  const host = url.hostname.toLowerCase()
+  if (host === 'localhost' || host === '' || host.endsWith('.local') || host.endsWith('.internal')) {
+    return false
+  }
+
+  // IPv4 literal in a private / loopback / link-local range
+  if (/^\d{1,3}(\.\d{1,3}){3}$/.test(host)) {
+    const [a, b] = host.split('.').map(Number)
+    if (
+      a === 0 ||
+      a === 10 ||
+      a === 127 ||
+      (a === 169 && b === 254) ||
+      (a === 172 && b >= 16 && b <= 31) ||
+      (a === 192 && b === 168)
+    ) {
+      return false
+    }
+  }
+
+  // IPv6 loopback / unique-local / link-local literals
+  if (host === '[::1]' || host.startsWith('[fc') || host.startsWith('[fd') || host.startsWith('[fe80')) {
+    return false
+  }
+
+  return true
+}
+
 export function getOppositeDatingGender(gender: string) {
   return gender === 'male' ? 'female' : 'male'
 }
@@ -101,7 +143,11 @@ export const datingProfileSchema = z.object({
   use_nickname: z.boolean().default(true),
   onboarding_completed: z.boolean().default(true),
   photo_urls: z
-    .array(cleanedString(DATING_FIELD_LIMITS.photoUrl).url())
+    .array(
+      cleanedString(DATING_FIELD_LIMITS.photoUrl)
+        .url()
+        .refine(isSafePublicHttpsUrl, { message: 'Photo URLs must be public https links.' })
+    )
     .max(PROFILE_PHOTO_MAX_COUNT)
     .default([]),
 })

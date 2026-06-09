@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase-server'
-import { anthropic, SAFETY_DISCLAIMER } from '@/lib/anthropic'
+import { anthropic, extractText, SAFETY_DISCLAIMER } from '@/lib/anthropic'
 import { getClientIp, jsonError, parseJson, rateLimit } from '@/lib/api'
 import { analysisSchema, analyzerInputSchema, fallbackAnalysis } from '@/lib/message-analysis'
 
@@ -40,9 +40,12 @@ export async function POST(req: NextRequest) {
         content: `Context: ${parsed.data.context || 'none'}\n\nConversation:\n${parsed.data.message_text}`,
       }],
     })
-    const text = message.content[0].type === 'text' ? message.content[0].text : '{}'
+    const text = extractText(message) || '{}'
     const jsonStart = text.indexOf('{')
     const jsonEnd = text.lastIndexOf('}')
+    if (jsonStart === -1 || jsonEnd === -1 || jsonEnd < jsonStart) {
+      return NextResponse.json(fallbackAnalysis(parsed.data.message_text))
+    }
     const json = JSON.parse(text.slice(jsonStart, jsonEnd + 1))
     const validated = analysisSchema.safeParse(json)
     if (!validated.success) return NextResponse.json(fallbackAnalysis(parsed.data.message_text))

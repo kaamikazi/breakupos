@@ -3,7 +3,6 @@
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { InlineAlert } from '@/components/shared/InlineAlert'
-import { createClient } from '@/lib/supabase'
 
 function isInAppBrowser() {
   if (typeof navigator === 'undefined') return false
@@ -14,35 +13,16 @@ function isInAppBrowser() {
 export function AuthOptions() {
   const [loading, setLoading] = useState<'github' | 'google' | null>(null)
   const [copied, setCopied] = useState(false)
-  const [error, setError] = useState<string | null>(null)
   const appUrl = typeof window !== 'undefined'
     ? window.location.origin
     : process.env.NEXT_PUBLIC_APP_URL ?? 'https://breakupos-beta.vercel.app'
   const inAppBrowser = isInAppBrowser()
   const oauthDisabled = loading !== null || inAppBrowser
 
-  const signIn = async (provider: 'github' | 'google') => {
+  const signIn = (provider: 'github' | 'google') => {
     if (inAppBrowser) return
-    setError(null)
     setLoading(provider)
-    const supabase = createClient()
-    const callbackUrl = new URL('/auth/callback/client', appUrl)
-    callbackUrl.searchParams.set('next', '/dashboard')
-
-    const { data, error: oauthError } = await supabase.auth.signInWithOAuth({
-      provider,
-      options: {
-        redirectTo: callbackUrl.toString(),
-      },
-    })
-
-    if (oauthError || !data.url) {
-      setLoading(null)
-      setError(oauthError?.message ?? 'Could not start sign-in. Please refresh and try again.')
-      return
-    }
-
-    window.location.assign(data.url)
+    window.location.assign(`/auth/login?provider=${provider}&next=/dashboard`)
   }
 
   return (
@@ -68,11 +48,6 @@ export function AuthOptions() {
           >
             {copied ? 'Link copied' : 'Copy beta link'}
           </button>
-        </InlineAlert>
-      )}
-      {error && (
-        <InlineAlert tone="warning" title="Sign-in did not start">
-          {error}
         </InlineAlert>
       )}
       <Button

@@ -66,20 +66,17 @@ export async function POST(req: NextRequest) {
     }
 
     case 'invoice.payment_failed': {
+      // Do NOT downgrade here. Stripe automatically retries failed invoices
+      // (dunning); an immediate downgrade would strip Pro from a paying user
+      // whose retry later succeeds. The actual loss of access is handled by
+      // `customer.subscription.deleted` once Stripe gives up on retries.
       const invoiceId = (event.data.object as Stripe.Invoice).id
       const customerId = (event.data.object as Stripe.Invoice).customer as string | null
-      logServerInfo('Stripe invoice payment failed', { route: 'stripe-webhook', invoiceId })
-      if (customerId) {
-        const { error } = await supabase
-          .from('profiles')
-          .update({
-            plan: 'free',
-            situations_limit: 5,
-            ai_advice_limit: 3,
-          })
-          .eq('stripe_customer_id', customerId)
-        if (error) logServerError('Failed to downgrade failed payment', { route: 'stripe-webhook', customerId, invoiceId })
-      }
+      logServerInfo('Stripe invoice payment failed (awaiting retry, no downgrade)', {
+        route: 'stripe-webhook',
+        invoiceId,
+        customerId,
+      })
       break
     }
   }
