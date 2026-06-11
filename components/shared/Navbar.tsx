@@ -13,6 +13,8 @@ interface NavbarProps {
 
 const NAV_LINKS = [
   { href: '/dashboard', label: 'Pipeline' },
+  { href: '/social', label: 'Social' },
+  { href: '/social/rankings', label: 'Rankings' },
   { href: '/discover', label: 'Discover' },
   { href: '/matches', label: 'Matches' },
   { href: '/dating/profile', label: 'Dating Profile' },
@@ -31,6 +33,10 @@ export function Navbar({ profile }: NavbarProps) {
   const pathname = usePathname()
   const router = useRouter()
   const supabase = createClient()
+  // Highlight only the most specific matching link (so /social/rankings lights up Rankings, not Social too).
+  const activeHref = NAV_LINKS
+    .filter(link => pathname === link.href || pathname.startsWith(`${link.href}/`))
+    .sort((a, b) => b.href.length - a.href.length)[0]?.href
   const [panicHidden, setPanicHidden] = useState(() =>
     typeof window !== 'undefined' && localStorage.getItem('breakupos-panic-hide') === 'true'
   )
@@ -66,7 +72,7 @@ export function Navbar({ profile }: NavbarProps) {
                 key={link.href}
                 href={link.href}
                 className={`px-3 py-1.5 rounded-md text-sm transition-colors ${
-                  pathname.startsWith(link.href)
+                  activeHref === link.href
                     ? 'bg-zinc-800 text-white'
                     : 'text-zinc-400 hover:text-white hover:bg-zinc-800/50'
                 }`}
