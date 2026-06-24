@@ -10,7 +10,7 @@ Use `.env.example` as the source template for local setup.
 | --- | --- | --- |
 | `NEXT_PUBLIC_SUPABASE_URL` | Yes | Supabase project URL |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Yes | Supabase anon key |
-| `SUPABASE_SERVICE_ROLE_KEY` | Yes | Server-only key. Never expose client-side. |
+| `SUPABASE_SERVICE_ROLE_KEY` | Yes | Server-only key. Required for account deletion and admin cleanup. Never expose client-side. |
 | `NEXT_PUBLIC_APP_URL` | Yes | Production app URL, e.g. `https://breakupos-beta.vercel.app` |
 | `ANTHROPIC_API_KEY` | Recommended | Enables AI advisor, reports, analyzer, weekly summaries |
 | `STRIPE_SECRET_KEY` | Billing | Required for checkout |
@@ -64,6 +64,18 @@ Use `.env.example` as the source template for local setup.
    - `credit_transactions`
    - `ai_usage_events`
 7. In Supabase Realtime, enable realtime events for `dating_messages` if chat should update without polling. The app falls back to manual refresh/polling behavior if the channel is unavailable.
+
+## Account Deletion Smoke Test
+
+1. Confirm `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, and `SUPABASE_SERVICE_ROLE_KEY` are present in Vercel Production.
+2. Create a disposable user account.
+3. Add a dating profile photo, social post, message request, chat message, and Breakup OS situation.
+4. Go to Privacy -> Delete account.
+5. Type `DELETE` exactly and confirm.
+6. Confirm the app redirects/signs out.
+7. Confirm the deleted user's social posts no longer appear.
+8. Confirm signing in again starts clean and does not restore old app data.
+9. Check Vercel logs. Optional storage cleanup warnings may appear if a bucket/object is already gone, but table cleanup/auth deletion should not return `cleanup_failed` or `auth_delete_failed`.
 
 ## Supabase Storage Setup
 

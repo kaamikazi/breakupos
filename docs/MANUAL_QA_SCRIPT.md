@@ -65,9 +65,21 @@ Make sure the admin email is included in `ADMIN_EMAILS`.
 23. Export data as JSON.
 24. Export data as CSV.
 25. Confirm exports include dating profile, photos metadata, matches, messages, reports, blocks, notifications, situations, interactions, relationship reports, and weekly summaries where present.
-26. Use Delete All only on the test account.
-27. Confirm explicit confirmation is required.
-28. Confirm Account A data no longer appears after deletion.
+26. Create one social post from the test account.
+27. React to one post.
+28. Send or receive one message request.
+29. Send one chat message.
+30. Create one manual Breakup OS situation.
+31. In Privacy, open Delete account.
+32. Confirm the final delete button stays disabled until the exact text `DELETE` is typed.
+33. Type `DELETE`.
+34. Confirm deletion.
+35. Confirm the user is redirected/signed out.
+36. Sign in again with the same provider.
+37. Confirm old situations, dating profile, message requests, chats, and social posts are not restored.
+38. Confirm the social feed no longer shows the deleted user's posts.
+39. Confirm no vague "Could not delete all account data" or stack trace appears.
+40. Use Delete All only on a separate test account if you need to test data deletion without auth-user deletion.
 
 ## Account B Script
 

@@ -1,6 +1,6 @@
 type LogContext = Record<string, string | number | boolean | null | undefined>
 
-const SAFE_KEY_PATTERN = /^(route|event|userId|status|code|operation|subscriptionId|customerId|invoiceId)$/i
+const SAFE_KEY_PATTERN = /^(route|event|userId|status|code|operation|step|table|bucket|errorMessage|subscriptionId|customerId|invoiceId)$/i
 
 function sanitizeContext(context: LogContext = {}) {
   return Object.fromEntries(

@@ -1,4 +1,12 @@
 import { describe, expect, it } from 'vitest'
+import {
+  ACCOUNT_DELETE_ORDER,
+  getAccountDeleteSafeMessage,
+  hasAccountDeleteServiceConfig,
+  isOptionalSchemaDriftError,
+  shouldContinueAfterStorageCleanupError,
+  canDeleteOnlyCurrentUser,
+} from '@/lib/account-delete'
 import { collectStoragePaths, deleteAccountSchema, deleteAllSchema, getDeleteAccountCoverageSummary, hasValidDeleteAccountConfirmation } from '@/lib/privacy'
 
 describe('privacy destructive confirmation', () => {
@@ -29,5 +37,41 @@ describe('privacy destructive confirmation', () => {
       'message requests',
       'profile photo and social post storage objects',
     ]))
+  })
+
+  it('requires service role config before account deletion can run', () => {
+    expect(hasAccountDeleteServiceConfig({
+      NEXT_PUBLIC_SUPABASE_URL: 'https://project.supabase.co',
+      SUPABASE_SERVICE_ROLE_KEY: 'eyJservice',
+    })).toBe(true)
+    expect(hasAccountDeleteServiceConfig({
+      NEXT_PUBLIC_SUPABASE_URL: 'https://project.supabase.co',
+      SUPABASE_SERVICE_ROLE_KEY: '',
+    })).toBe(false)
+  })
+
+  it('uses safe user-facing account deletion errors', () => {
+    expect(getAccountDeleteSafeMessage('missing_service_role')).toBe('Account deletion is temporarily unavailable. Please contact support.')
+    expect(getAccountDeleteSafeMessage('invalid_confirmation')).toBe('Please type DELETE to confirm.')
+    expect(getAccountDeleteSafeMessage('cleanup_failed')).not.toContain('stack')
+  })
+
+  it('treats storage cleanup as best effort and schema drift as optional', () => {
+    expect(shouldContinueAfterStorageCleanupError()).toBe(true)
+    expect(isOptionalSchemaDriftError({ code: '42P01', message: 'relation does not exist' })).toBe(true)
+    expect(isOptionalSchemaDriftError({ code: '42703', message: 'column does not exist' })).toBe(true)
+    expect(isOptionalSchemaDriftError({ code: '23503', message: 'foreign key violation' })).toBe(false)
+  })
+
+  it('only permits deleting the current authenticated user', () => {
+    expect(canDeleteOnlyCurrentUser({ currentUserId: 'user-1', targetUserId: 'user-1' })).toBe(true)
+    expect(canDeleteOnlyCurrentUser({ currentUserId: 'user-1', targetUserId: 'user-2' })).toBe(false)
+    expect(canDeleteOnlyCurrentUser({ currentUserId: null, targetUserId: 'user-2' })).toBe(false)
+  })
+
+  it('keeps auth deletion after app data cleanup', () => {
+    expect(ACCOUNT_DELETE_ORDER.at(-2)).toBe('profiles')
+    expect(ACCOUNT_DELETE_ORDER.at(-1)).toBe('auth_user')
+    expect(ACCOUNT_DELETE_ORDER.indexOf('dating_messages_by_match')).toBeLessThan(ACCOUNT_DELETE_ORDER.indexOf('matches'))
   })
 })
