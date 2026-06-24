@@ -32,6 +32,7 @@ const betaFeedbackUrl = process.env.NEXT_PUBLIC_BETA_FEEDBACK_URL
 
 export function Navbar({ profile }: NavbarProps) {
   const pathname = usePathname()
+  const isMobileChatRoute = /^\/matches\/[^/]+$/.test(pathname)
   const router = useRouter()
   const supabase = createClient()
   // Highlight only the most specific matching link (so /social/rankings lights up Rankings, not Social too).
@@ -60,7 +61,7 @@ export function Navbar({ profile }: NavbarProps) {
   }
 
   return (
-    <nav className="sticky top-0 z-50 border-b border-zinc-800 bg-zinc-950/90 backdrop-blur-sm">
+    <nav className={`sticky top-0 z-50 border-b border-zinc-800 bg-zinc-950/90 backdrop-blur-sm ${isMobileChatRoute ? 'hidden md:block' : ''}`}>
       <div className="max-w-7xl mx-auto px-4 min-h-14 flex flex-wrap items-center justify-between gap-3 py-2">
         <Link href={profile ? '/dashboard' : '/'} className="font-bold text-white text-lg tracking-tight">
           Breakup<span className="text-pink-500">OS</span>

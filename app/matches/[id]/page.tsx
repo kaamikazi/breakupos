@@ -67,15 +67,15 @@ export default async function MatchChatPage({ params }: MatchChatPageProps) {
   const blockedByCurrentUser = typedBlocks.some(block => block.blocker_user_id === user.id && block.blocked_user_id === otherUserId)
 
   return (
-    <main className="mx-auto max-w-6xl px-4 py-8">
-      <div className="mb-6">
+    <main className="-mb-24 mx-auto max-w-6xl px-0 py-0 md:mb-0 md:px-4 md:py-8">
+      <div className="mb-6 hidden md:block">
         <Link href="/matches" className="text-sm text-zinc-400 hover:text-white">Back to matches</Link>
         <h1 className="mt-3 text-3xl font-bold text-white sm:text-4xl">Chat with {otherPublicName}</h1>
         <p className="mt-2 text-sm text-zinc-400">Realtime match chat with safety controls and optional AI reply help.</p>
       </div>
 
-      <div className="grid gap-5 lg:grid-cols-[320px_1fr]">
-        <aside className="grid content-start gap-4">
+      <div className="grid gap-0 md:gap-5 lg:grid-cols-[320px_1fr]">
+        <aside className="hidden content-start gap-4 lg:grid">
           <Card className="border-zinc-800 bg-zinc-900">
             <div className="aspect-[4/5] bg-zinc-800">
               {primaryPhoto ? (

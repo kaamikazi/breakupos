@@ -20,6 +20,7 @@ const TABS = [
 export function MobileBottomNav({ profile }: MobileBottomNavProps) {
   const pathname = usePathname()
   if (!profile) return null
+  if (/^\/matches\/[^/]+$/.test(pathname)) return null
 
   const activeHref = TABS
     .filter(tab => pathname === tab.href || pathname.startsWith(`${tab.href}/`))
