@@ -6,7 +6,7 @@
 ![Supabase](https://img.shields.io/badge/Supabase-Postgres-3ecf8e)
 ![Stripe](https://img.shields.io/badge/Stripe-Subscriptions-635bff)
 
-BreakupOS is a privacy-minded relationship CRM and private-beta dating foundation for tracking situations, no-contact recovery, red flags, emotional investment, compatibility, AI-assisted decision making, discovery, matches, and future chat.
+BreakupOS is an AI-powered emotional operating system for breakups, ghosting, no-contact recovery, talking stages, dating, photo-only social verdicts, and private situationship tracking.
 
 ## Private Beta Status
 
@@ -20,6 +20,10 @@ What works:
 - Discovery, like/pass, daily like limits, and matches
 - Match chat with participant-only access, soft delete, read receipts, block/report safety behavior, and Realtime/polling fallback notes
 - In-app notifications for matches, messages, report updates, and weekly summaries
+- Photo-only social feed with Love / Red Flag reactions
+- Section-based social rankings for Top Loved, Most Red-Flagged, Most Divisive, and Trending Today
+- Mobile bottom tab navigation and PWA manifest/icons
+- Credit wallet foundation for cost-protected AI actions
 - Admin report review for configured admin emails
 - Breakup OS situation tracking, advisor, analyzer, recovery mode, analytics, reports, weekly summaries, export, and delete-all
 
@@ -31,6 +35,8 @@ What is experimental:
 - Moderation is basic and should be manually reviewed during beta
 - OCR for screenshots is placeholder/manual fallback
 - Reports are printable HTML rather than server-rendered PDFs
+- PWA offline support is a simple fallback page; a full service worker cache is still future work
+- Credits are internal ledger infrastructure; credit-pack checkout is a next step
 
 Before inviting testers:
 
@@ -50,6 +56,9 @@ BreakupOS helps users turn messy romantic uncertainty into structured data:
 - Analyze pasted conversations for mixed signals and risks
 - Generate printable relationship reports for individual situations
 - Generate manual weekly AI coach summaries
+- Post photo-only social situations and react with Love or Red Flag
+- Browse section-based community rankings without public identity scoring
+- Use starter credits/free quota for deeper AI actions while protecting cloud costs
 - Review analytics that reveal patterns over time
 - Export or delete sensitive data from privacy controls
 - Create a dating profile, browse discovery, like/pass, match, and prepare for future realtime chat
@@ -66,17 +75,19 @@ Add production screenshots here after deployment:
 
 ```text
 app/
-  api/                  Server routes for advisor, analyzer, dating, reports, summaries, situations, privacy, Stripe
+  api/                  Server routes for advisor, analyzer, dating, social, reports, summaries, situations, privacy, Stripe
   dashboard/            Pipeline entry point
   dating/profile/       Dating profile setup and edit flow
   discover/             One-card-at-a-time discovery feed
   matches/              Match list and realtime chat
+  social/               Photo-only social feed and rankings
   situation/[id]/       Situation detail shell and client workflow
   analytics/            Server-loaded analytics page
 components/
   Advisor/              AI advisor and message analyzer UI
   Analytics/            Chart components
   Dating/               Profile setup and discovery feed UI
+  Social/               Photo-only feed and community rankings UI
   Pipeline/             Board, columns, cards
   Recovery/             No-contact recovery UI
   Situation/            Forms, flags, interactions, timeline, scoring

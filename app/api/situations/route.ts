@@ -21,6 +21,11 @@ const createSituationSchema = z.object({
   recovery_milestones: z.array(z.string().trim().max(FIELD_LIMITS.milestone)).max(50).optional().default([]),
   memory_summary: z.string().max(1000).nullable().optional(),
   private_vault: z.string().max(FIELD_LIMITS.privateVault).optional().default(''),
+  situation_person_type: z.enum(['manual', 'matched_user']).optional().default('manual'),
+  manual_name: z.string().trim().max(FIELD_LIMITS.name).nullable().optional(),
+  manual_photo_url: z.string().url().nullable().optional(),
+  matched_user_id: z.string().uuid().nullable().optional(),
+  dating_profile_id: z.string().uuid().nullable().optional(),
 })
 
 export async function GET() {
@@ -66,6 +71,7 @@ export async function POST(req: NextRequest) {
     .insert({
       ...parsed.data,
       user_id: user.id,
+      manual_name: parsed.data.manual_name ?? parsed.data.name,
       compatibility,
     })
     .select()

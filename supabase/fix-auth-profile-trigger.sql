@@ -5,6 +5,13 @@
 -- It makes the auth.users -> public.profiles trigger tolerate OAuth users
 -- with missing provider email metadata and duplicate/rerun edge cases.
 
+CREATE TABLE IF NOT EXISTS public.user_credits (
+  user_id    UUID PRIMARY KEY REFERENCES public.profiles(id) ON DELETE CASCADE,
+  balance    INT NOT NULL DEFAULT 10 CHECK (balance >= 0),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -23,6 +30,9 @@ BEGIN
   SET
     email = COALESCE(EXCLUDED.email, public.profiles.email),
     display_name = COALESCE(public.profiles.display_name, EXCLUDED.display_name);
+  INSERT INTO public.user_credits (user_id)
+  VALUES (NEW.id)
+  ON CONFLICT (user_id) DO NOTHING;
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;

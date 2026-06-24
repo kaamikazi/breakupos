@@ -30,7 +30,11 @@ Use `.env.example` as the source template for local setup.
    - `https://breakupos-beta.vercel.app/auth/callback`
    - `https://breakupos-beta.vercel.app/auth/callback/client`
 4. Run `supabase/schema.sql` in the SQL editor.
-5. Confirm RLS is enabled on:
+5. For incremental production rollout, also run these focused migrations if you are not rerunning the full schema:
+   - `supabase/social-schema.sql`
+   - `supabase/credits-schema.sql`
+   - `supabase/fix-auth-profile-trigger.sql`
+6. Confirm RLS is enabled on:
    - `profiles`
    - `situations`
    - `interactions`
@@ -45,7 +49,12 @@ Use `.env.example` as the source template for local setup.
    - `dating_messages`
    - `user_blocks`
    - `user_reports`
-6. In Supabase Realtime, enable realtime events for `dating_messages` if chat should update without polling. The app falls back to manual refresh/polling behavior if the channel is unavailable.
+   - `social_posts`
+   - `social_post_reactions`
+   - `user_credits`
+   - `credit_transactions`
+   - `ai_usage_events`
+7. In Supabase Realtime, enable realtime events for `dating_messages` if chat should update without polling. The app falls back to manual refresh/polling behavior if the channel is unavailable.
 
 ## Supabase Storage Setup
 
@@ -54,6 +63,27 @@ Use `.env.example` as the source template for local setup.
 3. Add bucket policies that allow authenticated users to upload into their own folder path and read public objects. Server API routes still enforce ownership before writing/deleting metadata.
 4. Confirm max upload size is compatible with the app limit: 5MB.
 5. If you switch to a private bucket later, update the app to mint short-lived signed URLs for profile display.
+6. Create a Storage bucket named `social-posts`.
+7. For the photo-only social beta, configure `social-posts` as public with a 5MB limit and allowed MIME types `image/jpeg`, `image/png`, and `image/webp`.
+8. Social posts intentionally have no captions/comments. Red Flag reactions apply to the situation/post, not the person.
+
+## Credits / Cost Protection
+
+1. Run `supabase/credits-schema.sql` if the full schema has not already created `user_credits`, `credit_transactions`, `ai_usage_events`, and `spend_user_credits`.
+2. New users receive a starter wallet of 10 credits.
+3. Expensive AI actions should check free quota, Pro status, or credits before calling the AI provider.
+4. Failed AI calls should record failed usage events and should not spend credits.
+5. Configure Upstash Redis env vars for durable production rate limits:
+   - `UPSTASH_REDIS_REST_URL`
+   - `UPSTASH_REDIS_REST_TOKEN`
+6. If Upstash is missing, the app uses in-memory rate limits only, which are best-effort on serverless.
+
+## PWA Setup
+
+1. The app exposes `/manifest.webmanifest` through `app/manifest.ts`.
+2. Icons live in `public/pwa/`.
+3. `public/offline.html` is a basic offline fallback page. A real service worker/cache strategy is a recommended next step before broad public launch.
+4. Test install behavior on Android Chrome from the production HTTPS domain.
 
 ## Database Migration Steps
 

@@ -69,6 +69,11 @@ export interface Database {
           memory_summary: string | null
           private_vault: string
           match_id: string | null
+          situation_person_type: string
+          manual_name: string | null
+          manual_photo_url: string | null
+          matched_user_id: string | null
+          dating_profile_id: string | null
           created_at: string
           updated_at: string
         }
@@ -95,6 +100,11 @@ export interface Database {
           memory_summary?: string | null
           private_vault?: string
           match_id?: string | null
+          situation_person_type?: string
+          manual_name?: string | null
+          manual_photo_url?: string | null
+          matched_user_id?: string | null
+          dating_profile_id?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -121,6 +131,11 @@ export interface Database {
           memory_summary?: string | null
           private_vault?: string
           match_id?: string | null
+          situation_person_type?: string
+          manual_name?: string | null
+          manual_photo_url?: string | null
+          matched_user_id?: string | null
+          dating_profile_id?: string | null
           created_at?: string
           updated_at?: string
         }

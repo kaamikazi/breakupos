@@ -51,7 +51,15 @@ export async function POST(_req: NextRequest, { params }: ConvertRouteProps) {
 
   const { data: situation, error } = await serviceClient
     .from('situations')
-    .insert({ ...payload, compatibility, user_id: user.id })
+    .insert({
+      ...payload,
+      compatibility,
+      user_id: user.id,
+      situation_person_type: 'matched_user',
+      matched_user_id: otherUserId,
+      manual_name: null,
+      manual_photo_url: null,
+    })
     .select('id')
     .single()
 

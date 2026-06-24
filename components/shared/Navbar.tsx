@@ -66,7 +66,7 @@ export function Navbar({ profile }: NavbarProps) {
         </Link>
 
         {profile && (
-          <div className="flex max-w-full items-center gap-1 overflow-x-auto">
+          <div className="hidden max-w-full items-center gap-1 overflow-x-auto md:flex">
             {NAV_LINKS.map(link => (
               <Link
                 key={link.href}
@@ -83,7 +83,7 @@ export function Navbar({ profile }: NavbarProps) {
           </div>
         )}
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3">
           {betaFeedbackUrl && (
             <a
               href={betaFeedbackUrl}
@@ -109,7 +109,7 @@ export function Navbar({ profile }: NavbarProps) {
               <Button
                 size="sm"
                 variant="ghost"
-                className="text-zinc-400 hover:text-white text-xs"
+                className="hidden text-xs text-zinc-400 hover:text-white sm:inline-flex"
                 onClick={togglePanic}
               >
                 {panicHidden ? 'Show' : 'Hide'}

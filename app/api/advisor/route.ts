@@ -5,6 +5,7 @@ import { checkAIQuota, ensureProfileForUser } from '@/lib/quota'
 import { anthropic, extractText, ADVISOR_SYSTEM_PROMPT, SAFETY_DISCLAIMER } from '@/lib/anthropic'
 import { ADVICE_TYPE_VALUES, FIELD_LIMITS } from '@/lib/domain'
 import { getClientIp, jsonError, parseJson, rateLimit } from '@/lib/api'
+import { aiActionForAdvisor, canAffordCredits, getCreditBalance, getCreditCost, recordAIUsageEvent, spendCredits } from '@/lib/credits'
 
 const advisorSchema = z.object({
   situation_id: z.string().uuid(),
@@ -26,16 +27,29 @@ export async function POST(req: NextRequest) {
   const limit = await rateLimit(`advisor:${user.id}:${getClientIp(req)}`, 30, 60 * 60 * 1000)
   if (limit.limited) return jsonError('AI advisor rate limit reached. Try again later.', 429)
 
-  const canUse = await checkAIQuota(user.id)
-  if (!canUse) {
-    return NextResponse.json(
-      { error: 'AI advice limit reached. Upgrade to Pro for unlimited advice.' },
-      { status: 403 }
-    )
-  }
-
   const parsed = await parseJson(req, advisorSchema)
   if (parsed.error) return parsed.error
+
+  const creditAction = aiActionForAdvisor({
+    mode: parsed.data.mode,
+    advice_type: parsed.data.advice_type,
+  })
+  const canUseFreeQuotaOrPro = await checkAIQuota(user.id)
+  let shouldChargeCredits = false
+
+  if (!canUseFreeQuotaOrPro) {
+    const balance = await getCreditBalance(user.id)
+    if (!canAffordCredits(balance, creditAction)) {
+      await recordAIUsageEvent({ userId: user.id, action: creditAction, status: 'blocked' })
+      return NextResponse.json(
+        { error: `AI limit reached. This action costs ${getCreditCost(creditAction)} credits.` },
+        { status: 402 }
+      )
+    }
+    shouldChargeCredits = true
+  }
+
+  await recordAIUsageEvent({ userId: user.id, action: creditAction, status: 'started' })
 
   const serviceClient = createServiceClient()
 
@@ -102,7 +116,10 @@ Include this safety note when relevant: ${SAFETY_DISCLAIMER}`,
   })
 
   const advice = extractText(message)
-  if (!advice) return jsonError('The AI advisor did not return a response. Please try again.', 502)
+  if (!advice) {
+    await recordAIUsageEvent({ userId: user.id, action: creditAction, status: 'failed' })
+    return jsonError('The AI advisor did not return a response. Please try again.', 502)
+  }
   const memorySummary = [
     situation.memory_summary,
     `${new Date().toISOString().split('T')[0]}: ${parsed.data.mode} / ${parsed.data.advice_type} - ${parsed.data.question.slice(0, 120)}`,
@@ -124,6 +141,23 @@ Include this safety note when relevant: ${SAFETY_DISCLAIMER}`,
     .single()
 
   if (error) return jsonError(error.message, 500)
+
+  if (shouldChargeCredits) {
+    const charge = await spendCredits({ userId: user.id, action: creditAction, referenceId: savedAdvice.id })
+    if (!charge.ok) {
+      await recordAIUsageEvent({ userId: user.id, action: creditAction, status: 'blocked', referenceId: savedAdvice.id })
+      return jsonError('This AI response was created, but your credits could not be charged. Please try again.', 409)
+    }
+    await recordAIUsageEvent({
+      userId: user.id,
+      action: creditAction,
+      status: 'succeeded',
+      creditsCharged: charge.amount,
+      referenceId: savedAdvice.id,
+    })
+  } else {
+    await recordAIUsageEvent({ userId: user.id, action: creditAction, status: 'succeeded', referenceId: savedAdvice.id })
+  }
 
   await serviceClient
     .from('situations')

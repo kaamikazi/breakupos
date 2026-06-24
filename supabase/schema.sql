@@ -49,6 +49,11 @@ CREATE TABLE IF NOT EXISTS situations (
   memory_summary   TEXT,
   private_vault    TEXT DEFAULT '',
   match_id         UUID,
+  situation_person_type TEXT DEFAULT 'manual' CHECK (situation_person_type IN ('manual', 'matched_user')),
+  manual_name      TEXT,
+  manual_photo_url TEXT,
+  matched_user_id  UUID REFERENCES profiles(id) ON DELETE SET NULL,
+  dating_profile_id UUID,
   created_at       TIMESTAMPTZ DEFAULT NOW(),
   updated_at       TIMESTAMPTZ DEFAULT NOW()
 );
@@ -209,6 +214,53 @@ CREATE TABLE IF NOT EXISTS notifications (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS social_posts (
+  id            UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  user_id       UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+  image_url     TEXT NOT NULL CHECK (char_length(image_url) BETWEEN 1 AND 500),
+  storage_path  TEXT NOT NULL CHECK (char_length(storage_path) BETWEEN 1 AND 300),
+  section       TEXT NOT NULL CHECK (section IN ('ghosted', 'talking_stage', 'situationship', 'no_contact', 'healing', 'glow_up', 'red_flags')),
+  is_deleted    BOOLEAN NOT NULL DEFAULT FALSE,
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS social_post_reactions (
+  id            UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  post_id       UUID NOT NULL REFERENCES social_posts(id) ON DELETE CASCADE,
+  user_id       UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+  reaction_type TEXT NOT NULL CHECK (reaction_type IN ('love', 'red_flag')),
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE (post_id, user_id)
+);
+
+-- CREDIT / AI USAGE FOUNDATION
+CREATE TABLE IF NOT EXISTS user_credits (
+  user_id    UUID PRIMARY KEY REFERENCES profiles(id) ON DELETE CASCADE,
+  balance    INT NOT NULL DEFAULT 10 CHECK (balance >= 0),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS credit_transactions (
+  id            UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  user_id       UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+  amount        INT NOT NULL,
+  reason        TEXT NOT NULL,
+  reference_id  UUID,
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS ai_usage_events (
+  id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  user_id         UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+  action          TEXT NOT NULL,
+  status          TEXT NOT NULL CHECK (status IN ('started', 'succeeded', 'failed', 'blocked')),
+  credits_charged INT NOT NULL DEFAULT 0 CHECK (credits_charged >= 0),
+  reference_id    UUID,
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
 -- AUTO-UPDATE updated_at on situations
 CREATE OR REPLACE FUNCTION update_updated_at_column()
 RETURNS TRIGGER AS $$
@@ -233,6 +285,16 @@ CREATE TRIGGER update_dating_messages_updated_at
 BEFORE UPDATE ON dating_messages
 FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+DROP TRIGGER IF EXISTS update_social_posts_updated_at ON social_posts;
+CREATE TRIGGER update_social_posts_updated_at
+BEFORE UPDATE ON social_posts
+FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+DROP TRIGGER IF EXISTS update_user_credits_updated_at ON user_credits;
+CREATE TRIGGER update_user_credits_updated_at
+BEFORE UPDATE ON user_credits
+FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
 -- Auto-create profile on signup
 CREATE OR REPLACE FUNCTION handle_new_user()
 RETURNS TRIGGER AS $$
@@ -252,6 +314,9 @@ BEGIN
   SET
     email = COALESCE(EXCLUDED.email, public.profiles.email),
     display_name = COALESCE(public.profiles.display_name, EXCLUDED.display_name);
+  INSERT INTO public.user_credits (user_id)
+  VALUES (NEW.id)
+  ON CONFLICT (user_id) DO NOTHING;
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
@@ -293,6 +358,34 @@ CREATE TRIGGER update_profile_ai_count
 AFTER INSERT ON ai_advice
 FOR EACH ROW EXECUTE FUNCTION update_ai_advice_count();
 
+CREATE OR REPLACE FUNCTION spend_user_credits(
+  p_user_id UUID,
+  p_amount INT,
+  p_reason TEXT,
+  p_reference_id UUID DEFAULT NULL
+)
+RETURNS BOOLEAN AS $$
+BEGIN
+  IF p_amount <= 0 THEN
+    RAISE EXCEPTION 'Credit spend amount must be positive';
+  END IF;
+
+  UPDATE public.user_credits
+  SET balance = balance - p_amount
+  WHERE user_id = p_user_id
+    AND balance >= p_amount;
+
+  IF NOT FOUND THEN
+    RETURN FALSE;
+  END IF;
+
+  INSERT INTO public.credit_transactions (user_id, amount, reason, reference_id)
+  VALUES (p_user_id, -p_amount, p_reason, p_reference_id);
+
+  RETURN TRUE;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+
 -- RLS POLICIES
 ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE situations ENABLE ROW LEVEL SECURITY;
@@ -309,6 +402,11 @@ ALTER TABLE user_blocks ENABLE ROW LEVEL SECURITY;
 ALTER TABLE user_reports ENABLE ROW LEVEL SECURITY;
 ALTER TABLE dating_messages ENABLE ROW LEVEL SECURITY;
 ALTER TABLE notifications ENABLE ROW LEVEL SECURITY;
+ALTER TABLE social_posts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE social_post_reactions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE user_credits ENABLE ROW LEVEL SECURITY;
+ALTER TABLE credit_transactions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE ai_usage_events ENABLE ROW LEVEL SECURITY;
 
 -- Profiles: users can only see/edit their own
 DROP POLICY IF EXISTS "Users can view own profile" ON profiles;
@@ -423,6 +521,45 @@ CREATE POLICY "Users can view own notifications" ON notifications FOR SELECT USI
 DROP POLICY IF EXISTS "Users can update own notifications" ON notifications;
 CREATE POLICY "Users can update own notifications" ON notifications FOR UPDATE USING (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Users can view live social posts" ON social_posts;
+CREATE POLICY "Users can view live social posts" ON social_posts FOR SELECT USING (
+  auth.uid() IS NOT NULL AND (is_deleted = FALSE OR auth.uid() = user_id)
+);
+DROP POLICY IF EXISTS "Users can insert own social posts" ON social_posts;
+CREATE POLICY "Users can insert own social posts" ON social_posts FOR INSERT WITH CHECK (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Users can update own social posts" ON social_posts;
+CREATE POLICY "Users can update own social posts" ON social_posts FOR UPDATE USING (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Users can delete own social posts" ON social_posts;
+CREATE POLICY "Users can delete own social posts" ON social_posts FOR DELETE USING (auth.uid() = user_id);
+
+DROP POLICY IF EXISTS "Users can view social reactions" ON social_post_reactions;
+CREATE POLICY "Users can view social reactions" ON social_post_reactions FOR SELECT USING (auth.uid() IS NOT NULL);
+DROP POLICY IF EXISTS "Users can insert own social reactions" ON social_post_reactions;
+CREATE POLICY "Users can insert own social reactions" ON social_post_reactions FOR INSERT WITH CHECK (
+  auth.uid() = user_id AND EXISTS (
+    SELECT 1 FROM social_posts
+    WHERE social_posts.id = social_post_reactions.post_id
+      AND social_posts.is_deleted = FALSE
+  )
+);
+DROP POLICY IF EXISTS "Users can update own social reactions" ON social_post_reactions;
+CREATE POLICY "Users can update own social reactions" ON social_post_reactions FOR UPDATE USING (auth.uid() = user_id) WITH CHECK (
+  auth.uid() = user_id AND EXISTS (
+    SELECT 1 FROM social_posts
+    WHERE social_posts.id = social_post_reactions.post_id
+      AND social_posts.is_deleted = FALSE
+  )
+);
+DROP POLICY IF EXISTS "Users can delete own social reactions" ON social_post_reactions;
+CREATE POLICY "Users can delete own social reactions" ON social_post_reactions FOR DELETE USING (auth.uid() = user_id);
+
+DROP POLICY IF EXISTS "Users can view own credits" ON user_credits;
+CREATE POLICY "Users can view own credits" ON user_credits FOR SELECT USING (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Users can view own credit transactions" ON credit_transactions;
+CREATE POLICY "Users can view own credit transactions" ON credit_transactions FOR SELECT USING (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Users can view own ai usage events" ON ai_usage_events;
+CREATE POLICY "Users can view own ai usage events" ON ai_usage_events FOR SELECT USING (auth.uid() = user_id);
+
 -- Query indexes for dashboard, detail pages, analytics, and Stripe lookups.
 CREATE INDEX IF NOT EXISTS idx_profiles_stripe_customer_id ON profiles(stripe_customer_id);
 CREATE INDEX IF NOT EXISTS idx_situations_user_updated ON situations(user_id, updated_at DESC);
@@ -454,6 +591,15 @@ CREATE INDEX IF NOT EXISTS idx_dating_messages_match_created ON dating_messages(
 CREATE INDEX IF NOT EXISTS idx_dating_messages_sender_created ON dating_messages(sender_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_notifications_user_created ON notifications(user_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_notifications_user_read ON notifications(user_id, read_at);
+CREATE INDEX IF NOT EXISTS idx_social_posts_live_created ON social_posts(created_at DESC) WHERE is_deleted = FALSE;
+CREATE INDEX IF NOT EXISTS idx_social_posts_section_created ON social_posts(section, created_at DESC) WHERE is_deleted = FALSE;
+CREATE INDEX IF NOT EXISTS idx_social_posts_user_created ON social_posts(user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_social_reactions_post ON social_post_reactions(post_id, reaction_type);
+CREATE INDEX IF NOT EXISTS idx_social_reactions_user ON social_post_reactions(user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_social_reactions_created ON social_post_reactions(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_credit_transactions_user_created ON credit_transactions(user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_ai_usage_events_user_created ON ai_usage_events(user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_ai_usage_events_action_created ON ai_usage_events(action, created_at DESC);
 
 -- Upgrade migration helpers for existing BreakupOS databases.
 ALTER TABLE situations ADD COLUMN IF NOT EXISTS is_breakup_mode BOOLEAN DEFAULT FALSE;
@@ -463,6 +609,15 @@ ALTER TABLE situations ADD COLUMN IF NOT EXISTS recovery_milestones TEXT[] DEFAU
 ALTER TABLE situations ADD COLUMN IF NOT EXISTS memory_summary TEXT;
 ALTER TABLE situations ADD COLUMN IF NOT EXISTS private_vault TEXT DEFAULT '';
 ALTER TABLE situations ADD COLUMN IF NOT EXISTS match_id UUID;
+ALTER TABLE situations ADD COLUMN IF NOT EXISTS situation_person_type TEXT DEFAULT 'manual';
+ALTER TABLE situations ADD COLUMN IF NOT EXISTS manual_name TEXT;
+ALTER TABLE situations ADD COLUMN IF NOT EXISTS manual_photo_url TEXT;
+ALTER TABLE situations ADD COLUMN IF NOT EXISTS matched_user_id UUID;
+ALTER TABLE situations ADD COLUMN IF NOT EXISTS dating_profile_id UUID;
+ALTER TABLE situations DROP CONSTRAINT IF EXISTS situations_person_type_check;
+ALTER TABLE situations ADD CONSTRAINT situations_person_type_check CHECK (situation_person_type IN ('manual', 'matched_user'));
+ALTER TABLE situations DROP CONSTRAINT IF EXISTS situations_matched_user_id_fkey;
+ALTER TABLE situations ADD CONSTRAINT situations_matched_user_id_fkey FOREIGN KEY (matched_user_id) REFERENCES profiles(id) ON DELETE SET NULL;
 ALTER TABLE situations DROP CONSTRAINT IF EXISTS situations_match_id_fkey;
 ALTER TABLE situations ADD CONSTRAINT situations_match_id_fkey FOREIGN KEY (match_id) REFERENCES matches(id) ON DELETE SET NULL;
 ALTER TABLE dating_profiles ADD COLUMN IF NOT EXISTS use_nickname BOOLEAN DEFAULT TRUE;
@@ -507,6 +662,9 @@ ALTER TABLE profile_photos ADD COLUMN IF NOT EXISTS mime_type TEXT;
 ALTER TABLE profile_photos ADD COLUMN IF NOT EXISTS size_bytes INT;
 ALTER TABLE profile_photos DROP CONSTRAINT IF EXISTS profile_photos_user_id_fkey;
 ALTER TABLE profile_photos ADD CONSTRAINT profile_photos_user_id_fkey FOREIGN KEY (user_id) REFERENCES profiles(id) ON DELETE CASCADE;
+INSERT INTO user_credits (user_id)
+SELECT id FROM profiles
+ON CONFLICT (user_id) DO NOTHING;
 ALTER TABLE user_reports ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'open';
 ALTER TABLE user_reports ADD COLUMN IF NOT EXISTS internal_notes TEXT DEFAULT '';
 ALTER TABLE user_reports ADD COLUMN IF NOT EXISTS reviewed_at TIMESTAMPTZ;
@@ -520,3 +678,7 @@ ALTER TABLE interactions DROP CONSTRAINT IF EXISTS interactions_type_check;
 ALTER TABLE interactions ADD CONSTRAINT interactions_type_check CHECK (type IN ('message', 'date', 'call', 'ghost', 'breadcrumb', 'left_on_read', 'relapse', 'boundary', 'conflict', 'repair', 'stage_change'));
 ALTER TABLE ai_advice DROP CONSTRAINT IF EXISTS ai_advice_advice_type_check;
 ALTER TABLE ai_advice ADD CONSTRAINT ai_advice_advice_type_check CHECK (advice_type IN ('general', 'red_flag_analysis', 'move_recommendation', 'exit_strategy', 'draft_reply', 'message_analysis'));
+
+INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+VALUES ('social-posts', 'social-posts', TRUE, 5242880, ARRAY['image/jpeg', 'image/png', 'image/webp'])
+ON CONFLICT (id) DO NOTHING;

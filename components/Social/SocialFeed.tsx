@@ -200,6 +200,7 @@ export function SocialFeed() {
                 </div>
               </header>
 
+              {/* eslint-disable-next-line @next/next/no-img-element -- User-uploaded Supabase Storage images are intentionally served directly to avoid optimizer cost during beta. */}
               <img src={post.image_url} alt="" className="aspect-square w-full bg-zinc-950 object-cover" />
 
               <div className="space-y-3 px-4 py-3">
@@ -366,7 +367,10 @@ function CreatePostModal({ onClose, onCreated }: { onClose: () => void; onCreate
             onChange={event => pickFile(event.target.files?.[0] ?? null)}
           />
           {preview ? (
+            <>
+            {/* eslint-disable-next-line @next/next/no-img-element -- Local blob preview cannot use next/image. */}
             <img src={preview} alt="Preview" className="aspect-square w-full rounded-xl border border-zinc-700 object-cover" />
+            </>
           ) : (
             <div className="flex aspect-square w-full flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-zinc-700 text-zinc-500 transition-colors hover:border-pink-500/50 hover:text-pink-200">
               <Plus className="size-6" />

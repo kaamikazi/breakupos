@@ -119,6 +119,7 @@ export function RankingsClient() {
                     {items.map((post, position) => (
                       <li key={post.id} className="flex items-center gap-3">
                         <span className="w-5 text-center text-sm font-bold text-zinc-500">{position + 1}</span>
+                        {/* eslint-disable-next-line @next/next/no-img-element -- User-uploaded Supabase Storage images are intentionally served directly to avoid optimizer cost during beta. */}
                         <img src={post.image_url} alt="" className="size-14 rounded-lg border border-zinc-800 object-cover" />
                         <div className="min-w-0 flex-1">
                           <p className="truncate text-sm font-medium text-white">{post.display_name}</p>
