@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient, createServiceClient } from '@/lib/supabase-server'
 import { getClientIp, jsonError, rateLimit } from '@/lib/api'
 import { ensureProfileForUser } from '@/lib/quota'
+import { publicProfilePath } from '@/lib/social-profile'
 import {
   SOCIAL_FEED_PAGE_SIZE,
   SOCIAL_POST_BUCKET,
@@ -27,7 +28,7 @@ export async function GET(req: NextRequest) {
   const serviceClient = createServiceClient()
   let query = serviceClient
     .from('social_posts')
-    .select('id,user_id,image_url,section,created_at,profiles(display_name)')
+    .select('id,user_id,image_url,section,created_at,profiles(id,display_name,username,avatar_url)')
     .eq('is_deleted', false)
     .order('created_at', { ascending: false })
     .limit(SOCIAL_FEED_PAGE_SIZE)
@@ -54,10 +55,13 @@ export async function GET(req: NextRequest) {
     const loveCount = postReactions.filter(reaction => reaction.reaction_type === 'love').length
     const redFlagCount = postReactions.filter(reaction => reaction.reaction_type === 'red_flag').length
     const mine = postReactions.find(reaction => reaction.user_id === user.id)
-    const { profiles, ...rest } = post as typeof post & { profiles: { display_name: string | null } | null }
+    const { profiles, ...rest } = post as typeof post & { profiles: { id: string; display_name: string | null; username: string | null; avatar_url: string | null } | null }
     return {
       ...rest,
       display_name: profiles?.display_name ?? 'Anonymous',
+      username: profiles?.username ?? null,
+      avatar_url: profiles?.avatar_url ?? null,
+      profile_path: profiles ? publicProfilePath(profiles) : null,
       is_owner: post.user_id === user.id,
       love_count: loveCount,
       red_flag_count: redFlagCount,

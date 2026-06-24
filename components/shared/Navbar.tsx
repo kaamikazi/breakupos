@@ -17,6 +17,7 @@ const NAV_LINKS = [
   { href: '/social/rankings', label: 'Rankings' },
   { href: '/discover', label: 'Discover' },
   { href: '/matches', label: 'Matches' },
+  { href: '/requests', label: 'Requests' },
   { href: '/dating/profile', label: 'Dating Profile' },
   { href: '/notifications', label: 'Notifications' },
   { href: '/safety', label: 'Safety' },

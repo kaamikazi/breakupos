@@ -8,6 +8,11 @@ export interface Database {
           id: string
           email: string
           display_name: string | null
+          username: string | null
+          avatar_url: string | null
+          public_bio: string
+          public_vibe: string
+          public_profile_visible: boolean
           plan: string
           situations_count: number
           situations_limit: number
@@ -21,6 +26,11 @@ export interface Database {
           id: string
           email: string
           display_name?: string | null
+          username?: string | null
+          avatar_url?: string | null
+          public_bio?: string
+          public_vibe?: string
+          public_profile_visible?: boolean
           plan?: string
           situations_count?: number
           situations_limit?: number
@@ -34,6 +44,11 @@ export interface Database {
           id?: string
           email?: string
           display_name?: string | null
+          username?: string | null
+          avatar_url?: string | null
+          public_bio?: string
+          public_vibe?: string
+          public_profile_visible?: boolean
           plan?: string
           situations_count?: number
           situations_limit?: number
@@ -613,6 +628,39 @@ export interface Database {
             referencedColumns: ['id']
           }
         ]
+      }
+      message_requests: {
+        Row: {
+          id: string
+          sender_id: string
+          receiver_id: string
+          source_post_id: string | null
+          message_text: string
+          status: string
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          sender_id: string
+          receiver_id: string
+          source_post_id?: string | null
+          message_text?: string
+          status?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          sender_id?: string
+          receiver_id?: string
+          source_post_id?: string | null
+          message_text?: string
+          status?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
       notifications: {
         Row: {

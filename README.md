@@ -22,6 +22,8 @@ What works:
 - In-app notifications for matches, messages, report updates, and weekly summaries
 - Photo-only social feed with Love / Red Flag reactions
 - Section-based social rankings for Top Loved, Most Red-Flagged, Most Divisive, and Trending Today
+- Public social profiles at `/u/[username]`
+- Message requests from social posts/profiles before opening chat
 - Mobile bottom tab navigation and PWA manifest/icons
 - Credit wallet foundation for cost-protected AI actions
 - Admin report review for configured admin emails
@@ -57,6 +59,8 @@ BreakupOS helps users turn messy romantic uncertainty into structured data:
 - Generate printable relationship reports for individual situations
 - Generate manual weekly AI coach summaries
 - Post photo-only social situations and react with Love or Red Flag
+- Open public poster profiles without exposing private BreakupOS data
+- Send safe message requests that can become match chats if accepted
 - Browse section-based community rankings without public identity scoring
 - Use starter credits/free quota for deeper AI actions while protecting cloud costs
 - Review analytics that reveal patterns over time

@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import type { Database } from '@/types/database'
 
-export const NOTIFICATION_TYPES = ['new_match', 'new_message', 'report_update', 'weekly_summary'] as const
+export const NOTIFICATION_TYPES = ['new_match', 'new_message', 'message_request', 'report_update', 'weekly_summary'] as const
 
 export const notificationReadSchema = z.object({
   notification_id: z.string().uuid(),

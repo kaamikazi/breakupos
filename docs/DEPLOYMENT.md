@@ -32,6 +32,7 @@ Use `.env.example` as the source template for local setup.
 4. Run `supabase/schema.sql` in the SQL editor.
 5. For incremental production rollout, also run these focused migrations if you are not rerunning the full schema:
    - `supabase/social-schema.sql`
+   - `supabase/social-profiles-message-requests.sql`
    - `supabase/credits-schema.sql`
    - `supabase/fix-auth-profile-trigger.sql`
 6. Confirm RLS is enabled on:
@@ -51,6 +52,7 @@ Use `.env.example` as the source template for local setup.
    - `user_reports`
    - `social_posts`
    - `social_post_reactions`
+   - `message_requests`
    - `user_credits`
    - `credit_transactions`
    - `ai_usage_events`

@@ -51,6 +51,11 @@ export interface Profile {
   id: string
   email: string
   display_name: string | null
+  username: string | null
+  avatar_url: string | null
+  public_bio: string
+  public_vibe: 'healing' | 'dating' | 'no_contact' | 'figuring_it_out' | 'glow_up'
+  public_profile_visible: boolean
   plan: 'free' | 'pro'
   situations_count: number
   situations_limit: number
@@ -234,7 +239,7 @@ export interface DatingMatch {
   created_at: string
 }
 
-export type NotificationType = 'new_match' | 'new_message' | 'report_update' | 'weekly_summary'
+export type NotificationType = 'new_match' | 'new_message' | 'message_request' | 'report_update' | 'weekly_summary'
 
 export interface AppNotification {
   id: string
@@ -275,6 +280,19 @@ export interface UserReport {
   internal_notes: string
   reviewed_at: string | null
   created_at: string
+}
+
+export type MessageRequestStatus = 'pending' | 'accepted' | 'declined' | 'blocked'
+
+export interface MessageRequest {
+  id: string
+  sender_id: string
+  receiver_id: string
+  source_post_id: string | null
+  message_text: string
+  status: MessageRequestStatus
+  created_at: string
+  updated_at: string
 }
 
 export type DatingProfileWithPhotos = DatingProfile & {

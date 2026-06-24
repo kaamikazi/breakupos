@@ -1,4 +1,5 @@
 import { createServiceClient } from '@/lib/supabase-server'
+import { fallbackUsername } from '@/lib/social-profile'
 
 interface AuthUserProfileInput {
   id: string
@@ -25,6 +26,7 @@ export async function ensureProfileForUser(user: AuthUserProfileInput) {
       id: user.id,
       email,
       display_name: displayName,
+      username: fallbackUsername({ email, displayName, userId: user.id }),
       plan: 'free',
       situations_count: 0,
       situations_limit: 5,

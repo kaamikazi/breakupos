@@ -1,11 +1,13 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import Link from 'next/link'
 import { formatDistanceToNow } from 'date-fns'
 import { toast } from 'sonner'
 import { Flag, Heart, Plus, Trash2, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/shared/EmptyState'
+import { MessageRequestButton } from '@/components/Social/MessageRequestButton'
 import {
   SOCIAL_PHOTO_MAX_SIZE,
   SOCIAL_SECTION_LABELS,
@@ -23,6 +25,9 @@ type FeedPost = {
   section: SocialSection
   created_at: string
   display_name: string
+  username: string | null
+  avatar_url: string | null
+  profile_path: string | null
   is_owner: boolean
   love_count: number
   red_flag_count: number
@@ -173,11 +178,22 @@ export function SocialFeed() {
             <article key={post.id} className="overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-900/60">
               <header className="flex items-center justify-between gap-2 px-4 py-3">
                 <div className="flex items-center gap-2">
-                  <div className="flex size-8 items-center justify-center rounded-full bg-pink-500/15 text-sm font-semibold text-pink-200">
-                    {post.display_name.slice(0, 1).toUpperCase()}
-                  </div>
+                  <Link
+                    href={post.profile_path ?? '#'}
+                    className="flex size-8 items-center justify-center overflow-hidden rounded-full bg-pink-500/15 text-sm font-semibold text-pink-200"
+                    aria-label={`View ${post.display_name}'s profile`}
+                  >
+                    {post.avatar_url ? (
+                      // eslint-disable-next-line @next/next/no-img-element -- Provider avatars are direct public URLs.
+                      <img src={post.avatar_url} alt="" className="h-full w-full object-cover" />
+                    ) : (
+                      post.display_name.slice(0, 1).toUpperCase()
+                    )}
+                  </Link>
                   <div>
-                    <p className="text-sm font-medium text-white">{post.display_name}</p>
+                    <Link href={post.profile_path ?? '#'} className="text-sm font-medium text-white hover:text-pink-200">
+                      {post.display_name}
+                    </Link>
                     <p className="text-xs text-zinc-500">
                       {formatDistanceToNow(new Date(post.created_at), { addSuffix: true })}
                     </p>
@@ -249,6 +265,14 @@ export function SocialFeed() {
                     </>
                   ) : (
                     <p className="text-xs text-zinc-600">No reactions yet. Cast the first verdict.</p>
+                  )}
+                </div>
+                <div className="flex items-center justify-between gap-3 border-t border-zinc-800 pt-3">
+                  <Link href={post.profile_path ?? '#'} className="text-xs font-semibold text-zinc-400 hover:text-pink-200">
+                    View profile
+                  </Link>
+                  {!post.is_owner && (
+                    <MessageRequestButton receiverId={post.user_id} sourcePostId={post.id} label="Reach out" compact />
                   )}
                 </div>
               </div>

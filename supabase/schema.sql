@@ -15,6 +15,11 @@ CREATE TABLE IF NOT EXISTS profiles (
   id                     UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
   email                  TEXT NOT NULL,
   display_name           TEXT,
+  username               TEXT UNIQUE,
+  avatar_url             TEXT,
+  public_bio             TEXT DEFAULT '' CHECK (char_length(public_bio) <= 300),
+  public_vibe            TEXT DEFAULT 'figuring_it_out' CHECK (public_vibe IN ('healing', 'dating', 'no_contact', 'figuring_it_out', 'glow_up')),
+  public_profile_visible BOOLEAN DEFAULT TRUE,
   plan                   TEXT DEFAULT 'free' CHECK (plan IN ('free', 'pro')),
   situations_count       INT DEFAULT 0,
   situations_limit       INT DEFAULT 5,
@@ -206,12 +211,24 @@ CREATE TABLE IF NOT EXISTS dating_messages (
 CREATE TABLE IF NOT EXISTS notifications (
   id         UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   user_id    UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
-  type       TEXT NOT NULL CHECK (type IN ('new_match', 'new_message', 'report_update', 'weekly_summary')),
+  type       TEXT NOT NULL CHECK (type IN ('new_match', 'new_message', 'message_request', 'report_update', 'weekly_summary')),
   title      TEXT NOT NULL CHECK (char_length(title) BETWEEN 1 AND 120),
   body       TEXT NOT NULL CHECK (char_length(body) <= 500),
   link_url   TEXT,
   read_at    TIMESTAMPTZ,
   created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS message_requests (
+  id             UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  sender_id      UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+  receiver_id    UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+  source_post_id UUID REFERENCES social_posts(id) ON DELETE SET NULL,
+  message_text   TEXT DEFAULT '' CHECK (char_length(message_text) <= 240),
+  status         TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'accepted', 'declined', 'blocked')),
+  created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  CHECK (sender_id <> receiver_id)
 );
 
 CREATE TABLE IF NOT EXISTS social_posts (
@@ -290,6 +307,11 @@ CREATE TRIGGER update_social_posts_updated_at
 BEFORE UPDATE ON social_posts
 FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+DROP TRIGGER IF EXISTS update_message_requests_updated_at ON message_requests;
+CREATE TRIGGER update_message_requests_updated_at
+BEFORE UPDATE ON message_requests
+FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
 DROP TRIGGER IF EXISTS update_user_credits_updated_at ON user_credits;
 CREATE TRIGGER update_user_credits_updated_at
 BEFORE UPDATE ON user_credits
@@ -299,10 +321,23 @@ FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE OR REPLACE FUNCTION handle_new_user()
 RETURNS TRIGGER AS $$
 BEGIN
-  INSERT INTO public.profiles (id, email, display_name)
+  INSERT INTO public.profiles (id, email, username, avatar_url, display_name)
   VALUES (
     NEW.id,
     COALESCE(NEW.email, NEW.raw_user_meta_data->>'email', ''),
+    left(lower(trim(both '_' from regexp_replace(
+      COALESCE(
+        NEW.raw_user_meta_data->>'preferred_username',
+        NEW.raw_user_meta_data->>'user_name',
+        NEW.raw_user_meta_data->>'full_name',
+        NEW.raw_user_meta_data->>'name',
+        split_part(COALESCE(NEW.email, NEW.raw_user_meta_data->>'email', 'user_' || substr(NEW.id::text, 1, 8)), '@', 1)
+      ),
+      '[^a-zA-Z0-9_]+',
+      '_',
+      'g'
+    ))) || '_' || substr(NEW.id::text, 1, 6), 30),
+    NEW.raw_user_meta_data->>'avatar_url',
     COALESCE(
       NEW.raw_user_meta_data->>'full_name',
       NEW.raw_user_meta_data->>'name',
@@ -313,6 +348,8 @@ BEGIN
   ON CONFLICT (id) DO UPDATE
   SET
     email = COALESCE(EXCLUDED.email, public.profiles.email),
+    username = COALESCE(public.profiles.username, EXCLUDED.username),
+    avatar_url = COALESCE(EXCLUDED.avatar_url, public.profiles.avatar_url),
     display_name = COALESCE(public.profiles.display_name, EXCLUDED.display_name);
   INSERT INTO public.user_credits (user_id)
   VALUES (NEW.id)
@@ -404,6 +441,7 @@ ALTER TABLE dating_messages ENABLE ROW LEVEL SECURITY;
 ALTER TABLE notifications ENABLE ROW LEVEL SECURITY;
 ALTER TABLE social_posts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE social_post_reactions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE message_requests ENABLE ROW LEVEL SECURITY;
 ALTER TABLE user_credits ENABLE ROW LEVEL SECURITY;
 ALTER TABLE credit_transactions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE ai_usage_events ENABLE ROW LEVEL SECURITY;
@@ -411,6 +449,8 @@ ALTER TABLE ai_usage_events ENABLE ROW LEVEL SECURITY;
 -- Profiles: users can only see/edit their own
 DROP POLICY IF EXISTS "Users can view own profile" ON profiles;
 CREATE POLICY "Users can view own profile" ON profiles FOR SELECT USING (auth.uid() = id);
+DROP POLICY IF EXISTS "Users can view public profiles" ON profiles;
+CREATE POLICY "Users can view public profiles" ON profiles FOR SELECT USING (public_profile_visible = TRUE);
 DROP POLICY IF EXISTS "Users can update own profile" ON profiles;
 CREATE POLICY "Users can update own profile" ON profiles FOR UPDATE USING (auth.uid() = id);
 
@@ -553,6 +593,15 @@ CREATE POLICY "Users can update own social reactions" ON social_post_reactions F
 DROP POLICY IF EXISTS "Users can delete own social reactions" ON social_post_reactions;
 CREATE POLICY "Users can delete own social reactions" ON social_post_reactions FOR DELETE USING (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Users can view own message requests" ON message_requests;
+CREATE POLICY "Users can view own message requests" ON message_requests FOR SELECT USING (
+  auth.uid() = sender_id OR auth.uid() = receiver_id
+);
+DROP POLICY IF EXISTS "Users can insert sent message requests" ON message_requests;
+CREATE POLICY "Users can insert sent message requests" ON message_requests FOR INSERT WITH CHECK (auth.uid() = sender_id);
+DROP POLICY IF EXISTS "Receivers can update incoming message requests" ON message_requests;
+CREATE POLICY "Receivers can update incoming message requests" ON message_requests FOR UPDATE USING (auth.uid() = receiver_id) WITH CHECK (auth.uid() = receiver_id);
+
 DROP POLICY IF EXISTS "Users can view own credits" ON user_credits;
 CREATE POLICY "Users can view own credits" ON user_credits FOR SELECT USING (auth.uid() = user_id);
 DROP POLICY IF EXISTS "Users can view own credit transactions" ON credit_transactions;
@@ -562,6 +611,7 @@ CREATE POLICY "Users can view own ai usage events" ON ai_usage_events FOR SELECT
 
 -- Query indexes for dashboard, detail pages, analytics, and Stripe lookups.
 CREATE INDEX IF NOT EXISTS idx_profiles_stripe_customer_id ON profiles(stripe_customer_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_profiles_username ON profiles(username) WHERE username IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_situations_user_updated ON situations(user_id, updated_at DESC);
 CREATE INDEX IF NOT EXISTS idx_situations_user_stage ON situations(user_id, stage);
 CREATE INDEX IF NOT EXISTS idx_situations_user_breakup ON situations(user_id, is_breakup_mode) WHERE is_breakup_mode = TRUE;
@@ -597,6 +647,9 @@ CREATE INDEX IF NOT EXISTS idx_social_posts_user_created ON social_posts(user_id
 CREATE INDEX IF NOT EXISTS idx_social_reactions_post ON social_post_reactions(post_id, reaction_type);
 CREATE INDEX IF NOT EXISTS idx_social_reactions_user ON social_post_reactions(user_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_social_reactions_created ON social_post_reactions(created_at DESC);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_message_requests_pending_pair ON message_requests(sender_id, receiver_id) WHERE status = 'pending';
+CREATE INDEX IF NOT EXISTS idx_message_requests_receiver_created ON message_requests(receiver_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_message_requests_sender_created ON message_requests(sender_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_credit_transactions_user_created ON credit_transactions(user_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_ai_usage_events_user_created ON ai_usage_events(user_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_ai_usage_events_action_created ON ai_usage_events(action, created_at DESC);
@@ -645,6 +698,19 @@ ALTER TABLE dating_profiles ADD CONSTRAINT dating_profiles_gender_check CHECK (g
 ALTER TABLE dating_profiles ADD CONSTRAINT dating_profiles_interested_in_check CHECK (interested_in IN ('female', 'male'));
 
 ALTER TABLE profiles ALTER COLUMN situations_count SET DEFAULT 0;
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS username TEXT;
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS avatar_url TEXT;
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS public_bio TEXT DEFAULT '';
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS public_vibe TEXT DEFAULT 'figuring_it_out';
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS public_profile_visible BOOLEAN DEFAULT TRUE;
+ALTER TABLE profiles DROP CONSTRAINT IF EXISTS profiles_public_vibe_check;
+ALTER TABLE profiles ADD CONSTRAINT profiles_public_vibe_check CHECK (public_vibe IN ('healing', 'dating', 'no_contact', 'figuring_it_out', 'glow_up'));
+UPDATE profiles
+SET username = left(
+  lower(trim(both '_' from regexp_replace(COALESCE(display_name, split_part(email, '@', 1), 'user'), '[^a-zA-Z0-9_]+', '_', 'g'))) || '_' || substr(id::text, 1, 6),
+  30
+)
+WHERE username IS NULL;
 ALTER TABLE profiles ALTER COLUMN situations_limit SET DEFAULT 5;
 ALTER TABLE profiles ALTER COLUMN ai_advice_used SET DEFAULT 0;
 ALTER TABLE profiles ALTER COLUMN ai_advice_limit SET DEFAULT 3;

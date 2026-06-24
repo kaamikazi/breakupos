@@ -61,9 +61,14 @@ export default async function MatchesPage() {
           <h1 className="text-3xl font-bold text-white sm:text-4xl">People who liked you back</h1>
           <p className="mt-2 text-sm text-zinc-400">Open a match to chat, use safety controls, or track the connection in Breakup OS.</p>
         </div>
-        <Link href="/discover">
-          <Button className="bg-pink-500 text-white hover:bg-pink-600">Back to Discover</Button>
-        </Link>
+        <div className="flex gap-2">
+          <Link href="/requests">
+            <Button variant="outline" className="border-zinc-700 text-zinc-300">Requests</Button>
+          </Link>
+          <Link href="/discover">
+            <Button className="bg-pink-500 text-white hover:bg-pink-600">Back to Discover</Button>
+          </Link>
+        </div>
       </div>
 
       {typedMatches.length === 0 ? (

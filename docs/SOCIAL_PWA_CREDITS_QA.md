@@ -13,6 +13,11 @@ Use 2-3 real test accounts on the production beta domain.
 ## Social Feed
 
 - Open `/social`.
+- Tap a poster avatar/name and confirm it opens `/u/[username]`.
+- Confirm public profile shows only public profile fields, social posts, and public verdict stats.
+- Confirm public profile does not show email, private situations, AI analysis, reports, journals, no-contact data, or private match tracking.
+- Send a message request from a public profile.
+- Send a message request from a social post Reach out button and confirm the source post preview appears in `/requests`.
 - Upload JPG, PNG, and WebP photos under 5MB.
 - Confirm files over 5MB fail gracefully.
 - Confirm posts require an image and section.
@@ -47,6 +52,11 @@ Use 2-3 real test accounts on the production beta domain.
 
 - Confirm social posts have no caption field.
 - Confirm users cannot delete another user’s post.
+- Confirm users cannot message-request themselves.
+- Confirm duplicate pending message requests are blocked.
+- Confirm blocked users cannot send another request.
+- Confirm accepting a request opens/creates a match chat.
+- Confirm declining a request does not create a match.
 - Confirm unauthenticated users are redirected away from social pages.
 - Confirm stack traces are not visible in API errors.
 - Confirm private situations and matched-user tracking remain private.
