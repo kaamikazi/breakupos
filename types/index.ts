@@ -52,6 +52,7 @@ export interface Profile {
   email: string
   display_name: string | null
   username: string | null
+  public_display_name: string | null
   avatar_url: string | null
   bio: string
   public_bio: string

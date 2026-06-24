@@ -28,7 +28,7 @@ export async function GET(req: NextRequest) {
   const serviceClient = createServiceClient()
   let query = serviceClient
     .from('social_posts')
-    .select('id,user_id,image_url,section,created_at,profiles(id,display_name,username,avatar_url)')
+    .select('id,user_id,image_url,section,created_at,profiles(id,public_display_name,display_name,username,avatar_url)')
     .eq('is_deleted', false)
     .order('created_at', { ascending: false })
     .limit(SOCIAL_FEED_PAGE_SIZE)
@@ -37,10 +37,10 @@ export async function GET(req: NextRequest) {
   if (parsed.data.before) query = query.lt('created_at', parsed.data.before)
 
   let { data: posts, error } = await query
-  if (error && /username|avatar_url/i.test(error.message)) {
+  if (error && /public_display_name|username|avatar_url/i.test(error.message)) {
     const profileFallbackQuery = serviceClient
       .from('social_posts')
-      .select('id,user_id,image_url,section,created_at,profiles(id,display_name,avatar_url)')
+      .select('id,user_id,image_url,section,created_at,profiles(id,display_name,username,avatar_url)')
       .eq('is_deleted', false)
       .order('created_at', { ascending: false })
       .limit(SOCIAL_FEED_PAGE_SIZE)
@@ -53,7 +53,7 @@ export async function GET(req: NextRequest) {
     posts = fallback.data as typeof posts
     error = fallback.error
   }
-  if (error && /username|avatar_url/i.test(error.message)) {
+  if (error && /public_display_name|username|avatar_url/i.test(error.message)) {
     const minimalFallbackQuery = serviceClient
       .from('social_posts')
       .select('id,user_id,image_url,section,created_at,profiles(id,display_name)')
@@ -87,7 +87,7 @@ export async function GET(req: NextRequest) {
     const loveCount = postReactions.filter(reaction => reaction.reaction_type === 'love').length
     const redFlagCount = postReactions.filter(reaction => reaction.reaction_type === 'red_flag').length
     const mine = postReactions.find(reaction => reaction.user_id === user.id)
-    const { profiles, ...rest } = post as typeof post & { profiles: { id: string; display_name: string | null; username?: string | null; avatar_url?: string | null } | null }
+    const { profiles, ...rest } = post as typeof post & { profiles: { id: string; public_display_name?: string | null; display_name: string | null; username?: string | null; avatar_url?: string | null } | null }
     return {
       ...rest,
       display_name: profiles ? getPublicDisplayName(profiles) : 'Breakup OS User',

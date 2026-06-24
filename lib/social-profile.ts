@@ -55,6 +55,7 @@ export const PUBLIC_DISPLAY_NAME_FALLBACK = 'Breakup OS User'
 
 export type PublicProfileSummaryInput = {
   id: string
+  public_display_name?: string | null
   display_name?: string | null
   username?: string | null
   avatar_url?: string | null
@@ -66,8 +67,8 @@ export type PublicProfileSummaryInput = {
   public_profile_visible?: boolean | null
 }
 
-export function getPublicDisplayName(profile: Pick<PublicProfileSummaryInput, 'display_name' | 'username'>) {
-  return profile.display_name?.trim() || profile.username || PUBLIC_DISPLAY_NAME_FALLBACK
+export function getPublicDisplayName(profile: Pick<PublicProfileSummaryInput, 'public_display_name' | 'display_name' | 'username'>) {
+  return profile.public_display_name?.trim() || profile.username?.trim() || profile.display_name?.trim() || PUBLIC_DISPLAY_NAME_FALLBACK
 }
 
 export function getPublicBio(profile: Pick<PublicProfileSummaryInput, 'bio' | 'public_bio'>) {
@@ -82,6 +83,7 @@ export function toPublicProfileSummary(profile: PublicProfileSummaryInput) {
   return {
     id: profile.id,
     display_name: getPublicDisplayName(profile),
+    public_display_name: profile.public_display_name ?? null,
     username: profile.username ?? null,
     avatar_url: profile.avatar_url ?? null,
     bio: getPublicBio(profile),

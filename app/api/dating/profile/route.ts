@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient, createServiceClient } from '@/lib/supabase-server'
 import { datingProfileSchema } from '@/lib/dating'
 import { jsonError, parseJson } from '@/lib/api'
+import { normalizeUsername } from '@/lib/social-profile'
 
 export async function GET() {
   const supabase = await createServerSupabaseClient()
@@ -55,6 +56,26 @@ export async function POST(req: NextRequest) {
     .single()
 
   if (error) return jsonError(error.message, 500)
+
+  const { data: existingPublicProfile } = await serviceClient
+    .from('profiles')
+    .select('username')
+    .eq('id', user.id)
+    .maybeSingle()
+
+  const { error: publicProfileError } = await serviceClient
+    .from('profiles')
+    .update({
+      public_display_name: profile.display_name,
+      username: existingPublicProfile?.username ?? `${normalizeUsername(profile.display_name) || 'user'}-${user.id.slice(0, 8)}`.slice(0, 30),
+      bio: profile.bio,
+      public_profile_visible: true,
+      public_location: profile.city || null,
+      profile_completed_at: new Date().toISOString(),
+    })
+    .eq('id', user.id)
+
+  if (publicProfileError) return jsonError(publicProfileError.message, 500)
 
   const deletePhotos = await serviceClient.from('profile_photos').delete().eq('user_id', user.id).eq('source', 'url')
   if (deletePhotos.error) return jsonError(deletePhotos.error.message, 500)

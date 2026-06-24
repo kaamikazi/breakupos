@@ -19,12 +19,27 @@ export async function GET() {
   if (error) return jsonError(error.message, 500)
 
   const blockedIds = (blocks ?? []).map(block => block.blocked_user_id)
-  const { data: profiles, error: profilesError } = blockedIds.length
+  let { data: profiles, error: profilesError } = blockedIds.length
     ? await serviceClient
       .from('profiles')
-      .select('id,display_name,username,avatar_url')
+      .select('id,public_display_name,display_name,username,avatar_url')
       .in('id', blockedIds)
     : { data: [], error: null }
+
+  if (profilesError && /public_display_name|username|avatar_url/i.test(profilesError.message)) {
+    const fallback = await serviceClient
+      .from('profiles')
+      .select('id,display_name')
+      .in('id', blockedIds)
+    profiles = (fallback.data ?? []).map(profile => ({
+      id: profile.id,
+      public_display_name: null,
+      display_name: profile.display_name,
+      username: null,
+      avatar_url: null,
+    }))
+    profilesError = fallback.error
+  }
 
   if (profilesError) return jsonError(profilesError.message, 500)
 

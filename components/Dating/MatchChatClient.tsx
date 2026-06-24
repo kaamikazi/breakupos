@@ -22,6 +22,7 @@ interface MatchChatClientProps {
   matchId: string
   currentUserId: string
   otherProfile: DatingProfileWithPhotos
+  otherPublicName: string
   initialMessages: DatingMessage[]
   isBlocked: boolean
   blockedByCurrentUser: boolean
@@ -32,6 +33,7 @@ export function MatchChatClient({
   matchId,
   currentUserId,
   otherProfile,
+  otherPublicName,
   initialMessages,
   isBlocked,
   blockedByCurrentUser,
@@ -278,11 +280,11 @@ export function MatchChatClient({
               // eslint-disable-next-line @next/next/no-img-element -- User uploaded dating photos are served directly in beta.
               <img src={primaryPhoto} alt="" className="h-full w-full object-cover" />
             ) : (
-              otherProfile.display_name.slice(0, 1).toUpperCase()
+              otherPublicName.slice(0, 1).toUpperCase()
             )}
           </div>
           <div className="min-w-0 flex-1">
-            <h2 className="truncate text-base font-bold text-white">{otherProfile.display_name}</h2>
+            <h2 className="truncate text-base font-bold text-white">{otherPublicName}</h2>
             <p className="truncate text-xs text-zinc-500">{blockState.isBlocked ? blockState.message : 'Matched conversation'}</p>
           </div>
           <Button type="button" onClick={refresh} disabled={loading} variant="ghost" size="icon" className="text-zinc-300">

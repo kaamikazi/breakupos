@@ -10,6 +10,7 @@ import { EmptyState } from '@/components/shared/EmptyState'
 import { DATING_LABELS } from '@/lib/dating'
 import { getVerificationBadge } from '@/lib/dating-beta'
 import { isInactiveMatch } from '@/lib/dating-chat'
+import { getPublicDisplayName } from '@/lib/social-profile'
 import type { DatingMatch, DatingProfileWithPhotos } from '@/types'
 
 export default async function MatchesPage() {
@@ -36,12 +37,20 @@ export default async function MatchesPage() {
   const typedMatches = (matches ?? []) as DatingMatch[]
   const otherUserIds = typedMatches.map(match => match.user_one_id === user.id ? match.user_two_id : match.user_one_id)
 
-  const [{ data: profiles }, { data: photos }] = otherUserIds.length
+  const [{ data: profiles }, { data: photos }, publicProfilesResult] = otherUserIds.length
     ? await Promise.all([
       serviceClient.from('dating_profiles').select('*').in('user_id', otherUserIds),
       serviceClient.from('profile_photos').select('*').in('user_id', otherUserIds).order('position'),
+      serviceClient.from('profiles').select('id,public_display_name,username,display_name').in('id', otherUserIds),
     ])
-    : [{ data: [] }, { data: [] }]
+    : [{ data: [] }, { data: [] }, { data: [], error: null }]
+
+  const { data: fallbackPublicProfiles } = publicProfilesResult.error && /public_display_name|username/i.test(publicProfilesResult.error.message) && otherUserIds.length
+    ? await serviceClient.from('profiles').select('id,display_name').in('id', otherUserIds)
+    : { data: null }
+  const publicProfiles = publicProfilesResult.data ?? fallbackPublicProfiles ?? []
+
+  const publicProfileMap = new Map((publicProfiles ?? []).map(profile => [profile.id, profile]))
 
   const profileMap = new Map(
     ((profiles ?? []) as DatingProfileWithPhotos[]).map(profile => [
@@ -82,6 +91,8 @@ export default async function MatchesPage() {
           {typedMatches.map(match => {
             const otherUserId = match.user_one_id === user.id ? match.user_two_id : match.user_one_id
             const profile = profileMap.get(otherUserId)
+            const publicProfile = publicProfileMap.get(otherUserId)
+            const publicName = publicProfile ? getPublicDisplayName(publicProfile) : profile?.display_name ?? 'Breakup OS User'
             const photo = profile?.photos?.[0]?.photo_url
             const inactive = isInactiveMatch(match.last_activity_at ?? match.created_at)
             const verification = getVerificationBadge(profile?.verification_status)
@@ -98,7 +109,7 @@ export default async function MatchesPage() {
                   </div>
                   <div>
                     <h2 className="text-xl font-semibold text-white">
-                      {profile ? `${profile.display_name}, ${profile.age}` : 'Unavailable profile'}
+                      {profile ? `${publicName}, ${profile.age}` : 'Unavailable profile'}
                     </h2>
                     <p className="text-sm text-zinc-400">
                       Matched {formatDistanceToNow(new Date(match.created_at), { addSuffix: true })}

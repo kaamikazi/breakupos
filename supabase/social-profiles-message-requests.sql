@@ -2,6 +2,7 @@
 -- Run after supabase/schema.sql and supabase/social-schema.sql. Safe to rerun.
 
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS username TEXT;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS public_display_name TEXT;
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS avatar_url TEXT;
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS bio TEXT DEFAULT '';
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS public_bio TEXT DEFAULT '';
@@ -19,10 +20,14 @@ ALTER TABLE public.profiles ADD CONSTRAINT profiles_public_vibe_check CHECK (pub
 
 UPDATE public.profiles
 SET username = left(
-  lower(trim(both '_' from regexp_replace(COALESCE(display_name, split_part(email, '@', 1), 'user'), '[^a-zA-Z0-9_]+', '_', 'g'))) || '_' || substr(id::text, 1, 6),
+  lower(trim(both '_' from regexp_replace(COALESCE(public_display_name, display_name, 'user'), '[^a-zA-Z0-9_]+', '_', 'g'))) || '_' || substr(id::text, 1, 6),
   30
 )
 WHERE username IS NULL;
+
+UPDATE public.profiles
+SET public_display_name = NULLIF(trim(display_name), '')
+WHERE public_display_name IS NULL AND NULLIF(trim(display_name), '') IS NOT NULL;
 
 DROP INDEX IF EXISTS public.idx_profiles_username;
 ALTER TABLE public.profiles DROP CONSTRAINT IF EXISTS profiles_username_key;

@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation'
 import { createServerSupabaseClient, createServiceClient } from '@/lib/supabase-server'
-import { publicProfilePath } from '@/lib/social-profile'
+import { getPublicDisplayName, publicProfilePath } from '@/lib/social-profile'
 import { MessageRequestsClient } from './MessageRequestsClient'
 
 export default async function MessageRequestsPage() {
@@ -20,14 +20,25 @@ export default async function MessageRequestsPage() {
   const sourcePostIds = [...new Set((requests ?? [])
     .map(request => request.source_post_id)
     .filter((id): id is string => Boolean(id)))]
-  const [{ data: profiles }, { data: posts }] = await Promise.all([
+  const [profilesResult, { data: posts }] = await Promise.all([
     senderIds.length
-      ? serviceClient.from('profiles').select('id,display_name,username,avatar_url').in('id', senderIds)
-      : Promise.resolve({ data: [] }),
+      ? serviceClient.from('profiles').select('id,public_display_name,display_name,username,avatar_url').in('id', senderIds)
+      : Promise.resolve({ data: [], error: null }),
     sourcePostIds.length
       ? serviceClient.from('social_posts').select('id,image_url,section').in('id', sourcePostIds)
       : Promise.resolve({ data: [] }),
   ])
+
+  const { data: fallbackProfiles } = profilesResult.error && /public_display_name|username|avatar_url/i.test(profilesResult.error.message) && senderIds.length
+    ? await serviceClient.from('profiles').select('id,display_name').in('id', senderIds)
+    : { data: null }
+  const profiles = profilesResult.data ?? (fallbackProfiles ?? []).map(profile => ({
+    id: profile.id,
+    public_display_name: null,
+    display_name: profile.display_name,
+    username: null,
+    avatar_url: null,
+  }))
 
   const profileMap = new Map((profiles ?? []).map(profile => [profile.id, profile]))
   const postMap = new Map((posts ?? []).map(post => [post.id, post]))
@@ -37,7 +48,7 @@ export default async function MessageRequestsPage() {
     return {
       id: request.id,
       sender_id: request.sender_id,
-      sender_name: sender?.display_name ?? 'BreakupOS user',
+      sender_name: sender ? getPublicDisplayName(sender) : 'Breakup OS User',
       sender_username: sender?.username ?? null,
       sender_avatar_url: sender?.avatar_url ?? null,
       sender_profile_path: sender ? publicProfilePath(sender) : null,

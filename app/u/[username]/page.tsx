@@ -12,6 +12,7 @@ interface PublicProfilePageProps {
 
 type PublicProfile = {
   id: string
+  public_display_name: string | null
   display_name: string | null
   username: string | null
   avatar_url: string | null
@@ -32,11 +33,23 @@ export default async function PublicProfilePage({ params }: PublicProfilePagePro
 
   const serviceClient = createServiceClient()
   const normalizedUsername = decodeURIComponent(username).trim().toLowerCase()
-  const { data: profile } = await serviceClient
+  let { data: profile, error: profileError } = await serviceClient
     .from('profiles')
-    .select('id,display_name,username,avatar_url,bio,public_bio,social_vibe,public_vibe,public_location,created_at,public_profile_visible')
+    .select('id,public_display_name,display_name,username,avatar_url,bio,public_bio,social_vibe,public_vibe,public_location,created_at,public_profile_visible')
     .eq('username', normalizedUsername)
     .maybeSingle()
+
+  if (profileError && /public_display_name|avatar_url|bio|social_vibe|public_location/i.test(profileError.message)) {
+    const fallback = await serviceClient
+      .from('profiles')
+      .select('id,display_name,username,created_at,public_profile_visible')
+      .eq('username', normalizedUsername)
+      .maybeSingle()
+    profile = fallback.data as typeof profile
+    profileError = fallback.error
+  }
+
+  if (profileError) notFound()
 
   const publicProfile = profile as PublicProfile | null
   if (!publicProfile?.public_profile_visible) notFound()

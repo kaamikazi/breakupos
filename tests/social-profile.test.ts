@@ -33,7 +33,7 @@ describe('public social profiles', () => {
     expect(publicProfilePath({ username: null, id: 'user-id' })).toBeNull()
   })
 
-  it('renders social feed profile labels when username exists', () => {
+  it('renders social feed profile labels with username before display_name', () => {
     const summary = toPublicProfileSummary({
       id: 'user-id',
       display_name: 'Sam',
@@ -43,9 +43,37 @@ describe('public social profiles', () => {
       public_profile_visible: true,
     })
 
-    expect(summary.display_name).toBe('Sam')
+    expect(summary.display_name).toBe('sam')
     expect(summary.profile_path).toBe('/u/sam')
     expect(summary.bio).toBe('Public bio')
+  })
+
+  it('uses public_display_name before username or display_name on social surfaces', () => {
+    const summary = toPublicProfileSummary({
+      id: 'user-id',
+      public_display_name: 'kamikaze',
+      display_name: 'Imran Ahmed',
+      username: 'imran-ahmed',
+      avatar_url: null,
+    })
+
+    expect(summary.display_name).toBe('kamikaze')
+  })
+
+  it('uses username when public_display_name is missing', () => {
+    expect(getPublicDisplayName({
+      public_display_name: null,
+      username: 'kamikaze',
+      display_name: 'Imran Ahmed',
+    })).toBe('kamikaze')
+  })
+
+  it('falls back to display_name only when public_display_name and username are missing', () => {
+    expect(getPublicDisplayName({
+      public_display_name: null,
+      username: null,
+      display_name: 'Imran Ahmed',
+    })).toBe('Imran Ahmed')
   })
 
   it('renders social feed profile labels when username is null', () => {
@@ -63,7 +91,14 @@ describe('public social profiles', () => {
   })
 
   it('uses a safe display fallback without exposing email or ids', () => {
-    expect(getPublicDisplayName({ display_name: null, username: null })).toBe('Breakup OS User')
+    expect(getPublicDisplayName({ public_display_name: null, display_name: null, username: null })).toBe('Breakup OS User')
+    expect(getPublicDisplayName({
+      public_display_name: null,
+      display_name: null,
+      username: null,
+      // @ts-expect-error email must not participate in public display identity
+      email: 'imran@example.com',
+    })).toBe('Breakup OS User')
   })
 
   it('summarizes public verdicts without private data', () => {
@@ -76,6 +111,7 @@ describe('public social profiles', () => {
   it('public profile summaries hide private Breakup OS and situationship data', () => {
     const unsafeProfile = {
       id: 'user-id',
+      public_display_name: 'Public Sam',
       display_name: 'Public Sam',
       username: 'public-sam',
       avatar_url: null,
@@ -89,6 +125,7 @@ describe('public social profiles', () => {
     expect(profile).toEqual({
       id: 'user-id',
       display_name: 'Public Sam',
+      public_display_name: 'Public Sam',
       username: 'public-sam',
       avatar_url: null,
       bio: 'Visible',

@@ -10,6 +10,7 @@ import {
   socialRankingsQuerySchema,
   type SocialSection,
 } from '@/lib/social'
+import { getPublicDisplayName } from '@/lib/social-profile'
 
 // Bound the ranking workload: rank across the most recent live posts only.
 const RANKING_POST_POOL = 400
@@ -29,14 +30,26 @@ export async function GET(req: NextRequest) {
   const serviceClient = createServiceClient()
   let postsQuery = serviceClient
     .from('social_posts')
-    .select('id,user_id,image_url,section,created_at,profiles(display_name)')
+    .select('id,user_id,image_url,section,created_at,profiles(public_display_name,username,display_name)')
     .eq('is_deleted', false)
     .order('created_at', { ascending: false })
     .limit(RANKING_POST_POOL)
 
   if (parsed.data.section) postsQuery = postsQuery.eq('section', parsed.data.section)
 
-  const { data: posts, error } = await postsQuery
+  let { data: posts, error } = await postsQuery
+  if (error && /public_display_name|username/i.test(error.message)) {
+    let fallbackQuery = serviceClient
+      .from('social_posts')
+      .select('id,user_id,image_url,section,created_at,profiles(display_name)')
+      .eq('is_deleted', false)
+      .order('created_at', { ascending: false })
+      .limit(RANKING_POST_POOL)
+    if (parsed.data.section) fallbackQuery = fallbackQuery.eq('section', parsed.data.section)
+    const fallback = await fallbackQuery
+    posts = fallback.data as typeof posts
+    error = fallback.error
+  }
   if (error) return jsonError(error.message, 500)
 
   const postIds = (posts ?? []).map(post => post.id)
@@ -55,11 +68,11 @@ export async function GET(req: NextRequest) {
     const postReactions = reactions.filter(reaction => reaction.post_id === post.id)
     const loveCount = postReactions.filter(reaction => reaction.reaction_type === 'love').length
     const redFlagCount = postReactions.filter(reaction => reaction.reaction_type === 'red_flag').length
-    const { profiles, ...rest } = post as typeof post & { profiles: { display_name: string | null } | null }
+    const { profiles, ...rest } = post as typeof post & { profiles: { public_display_name?: string | null; username?: string | null; display_name: string | null } | null }
     return {
       ...rest,
       section: post.section as SocialSection,
-      display_name: profiles?.display_name ?? 'Anonymous',
+      display_name: profiles ? getPublicDisplayName(profiles) : 'Breakup OS User',
       love_count: loveCount,
       red_flag_count: redFlagCount,
       reactions_today: postReactions.filter(reaction => new Date(reaction.created_at).getTime() >= dayAgo).length,
