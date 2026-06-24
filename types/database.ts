@@ -10,8 +10,12 @@ export interface Database {
           display_name: string | null
           username: string | null
           avatar_url: string | null
+          bio: string
           public_bio: string
+          social_vibe: string
           public_vibe: string
+          public_location: string | null
+          profile_completed_at: string | null
           public_profile_visible: boolean
           plan: string
           situations_count: number
@@ -28,8 +32,12 @@ export interface Database {
           display_name?: string | null
           username?: string | null
           avatar_url?: string | null
+          bio?: string
           public_bio?: string
+          social_vibe?: string
           public_vibe?: string
+          public_location?: string | null
+          profile_completed_at?: string | null
           public_profile_visible?: boolean
           plan?: string
           situations_count?: number
@@ -46,8 +54,12 @@ export interface Database {
           display_name?: string | null
           username?: string | null
           avatar_url?: string | null
+          bio?: string
           public_bio?: string
+          social_vibe?: string
           public_vibe?: string
+          public_location?: string | null
+          profile_completed_at?: string | null
           public_profile_visible?: boolean
           plan?: string
           situations_count?: number

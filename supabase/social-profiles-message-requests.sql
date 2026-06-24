@@ -3,9 +3,17 @@
 
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS username TEXT;
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS avatar_url TEXT;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS bio TEXT DEFAULT '';
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS public_bio TEXT DEFAULT '';
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS social_vibe TEXT DEFAULT 'figuring_it_out';
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS public_vibe TEXT DEFAULT 'figuring_it_out';
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS public_profile_visible BOOLEAN DEFAULT TRUE;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS public_location TEXT;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS profile_completed_at TIMESTAMPTZ;
+UPDATE public.profiles SET public_profile_visible = TRUE WHERE public_profile_visible IS NULL;
+ALTER TABLE public.profiles ALTER COLUMN public_profile_visible SET NOT NULL;
+ALTER TABLE public.profiles DROP CONSTRAINT IF EXISTS profiles_social_vibe_check;
+ALTER TABLE public.profiles ADD CONSTRAINT profiles_social_vibe_check CHECK (social_vibe IN ('healing', 'dating', 'no_contact', 'figuring_it_out', 'glow_up'));
 ALTER TABLE public.profiles DROP CONSTRAINT IF EXISTS profiles_public_vibe_check;
 ALTER TABLE public.profiles ADD CONSTRAINT profiles_public_vibe_check CHECK (public_vibe IN ('healing', 'dating', 'no_contact', 'figuring_it_out', 'glow_up'));
 
@@ -16,7 +24,9 @@ SET username = left(
 )
 WHERE username IS NULL;
 
-CREATE UNIQUE INDEX IF NOT EXISTS idx_profiles_username ON public.profiles(username) WHERE username IS NOT NULL;
+DROP INDEX IF EXISTS public.idx_profiles_username;
+ALTER TABLE public.profiles DROP CONSTRAINT IF EXISTS profiles_username_key;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_profiles_username_lower_unique ON public.profiles(lower(username)) WHERE username IS NOT NULL;
 
 ALTER TABLE public.notifications DROP CONSTRAINT IF EXISTS notifications_type_check;
 ALTER TABLE public.notifications ADD CONSTRAINT notifications_type_check CHECK (type IN ('new_match', 'new_message', 'message_request', 'report_update', 'weekly_summary'));

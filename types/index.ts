@@ -53,8 +53,12 @@ export interface Profile {
   display_name: string | null
   username: string | null
   avatar_url: string | null
+  bio: string
   public_bio: string
+  social_vibe: 'healing' | 'dating' | 'no_contact' | 'figuring_it_out' | 'glow_up'
   public_vibe: 'healing' | 'dating' | 'no_contact' | 'figuring_it_out' | 'glow_up'
+  public_location: string | null
+  profile_completed_at: string | null
   public_profile_visible: boolean
   plan: 'free' | 'pro'
   situations_count: number

@@ -31,11 +31,13 @@ Use `.env.example` as the source template for local setup.
    - `https://breakupos-beta.vercel.app/auth/callback/client`
 4. Run `supabase/schema.sql` in the SQL editor.
 5. For incremental production rollout, also run these focused migrations if you are not rerunning the full schema:
+   - `supabase/public-social-profile-fields.sql`
    - `supabase/social-schema.sql`
    - `supabase/social-profiles-message-requests.sql`
    - `supabase/credits-schema.sql`
    - `supabase/fix-auth-profile-trigger.sql`
-6. Confirm RLS is enabled on:
+6. Important: a Vercel deploy does not update Supabase tables. If production errors with `column profiles_1.username does not exist`, run `supabase/public-social-profile-fields.sql` in the Supabase SQL editor, confirm it succeeds, then redeploy or refresh the app.
+7. Confirm RLS is enabled on:
    - `profiles`
    - `situations`
    - `interactions`
@@ -90,10 +92,11 @@ Use `.env.example` as the source template for local setup.
 ## Database Migration Steps
 
 1. Back up production data.
-2. Run the full `supabase/schema.sql`.
-3. Confirm indexes were created.
-4. Confirm policies exist and do not duplicate.
-5. Smoke-test one user account before opening traffic.
+2. For tonight's social profile launch, run `supabase/public-social-profile-fields.sql` first. It adds `profiles.username`, `bio`, `public_profile_visible`, `social_vibe`, `public_location`, and `profile_completed_at`, then backfills safe usernames and creates a unique `lower(username)` index.
+3. Run the full `supabase/schema.sql` for new environments, or the focused migrations listed above for existing environments.
+4. Confirm indexes were created.
+5. Confirm policies exist and do not duplicate.
+6. Smoke-test one user account before opening traffic.
 
 The schema is designed to be rerunnable: triggers and policies are dropped before recreation, columns use `ADD COLUMN IF NOT EXISTS`, and indexes use `CREATE INDEX IF NOT EXISTS`.
 

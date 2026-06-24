@@ -15,11 +15,15 @@ CREATE TABLE IF NOT EXISTS profiles (
   id                     UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
   email                  TEXT NOT NULL,
   display_name           TEXT,
-  username               TEXT UNIQUE,
+  username               TEXT,
   avatar_url             TEXT,
+  bio                    TEXT DEFAULT '' CHECK (char_length(bio) <= 300),
   public_bio             TEXT DEFAULT '' CHECK (char_length(public_bio) <= 300),
+  social_vibe            TEXT DEFAULT 'figuring_it_out' CHECK (social_vibe IN ('healing', 'dating', 'no_contact', 'figuring_it_out', 'glow_up')),
   public_vibe            TEXT DEFAULT 'figuring_it_out' CHECK (public_vibe IN ('healing', 'dating', 'no_contact', 'figuring_it_out', 'glow_up')),
-  public_profile_visible BOOLEAN DEFAULT TRUE,
+  public_profile_visible BOOLEAN NOT NULL DEFAULT TRUE,
+  public_location        TEXT,
+  profile_completed_at   TIMESTAMPTZ,
   plan                   TEXT DEFAULT 'free' CHECK (plan IN ('free', 'pro')),
   situations_count       INT DEFAULT 0,
   situations_limit       INT DEFAULT 5,
@@ -611,7 +615,7 @@ CREATE POLICY "Users can view own ai usage events" ON ai_usage_events FOR SELECT
 
 -- Query indexes for dashboard, detail pages, analytics, and Stripe lookups.
 CREATE INDEX IF NOT EXISTS idx_profiles_stripe_customer_id ON profiles(stripe_customer_id);
-CREATE UNIQUE INDEX IF NOT EXISTS idx_profiles_username ON profiles(username) WHERE username IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_profiles_username_lower_unique ON profiles(lower(username)) WHERE username IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_situations_user_updated ON situations(user_id, updated_at DESC);
 CREATE INDEX IF NOT EXISTS idx_situations_user_stage ON situations(user_id, stage);
 CREATE INDEX IF NOT EXISTS idx_situations_user_breakup ON situations(user_id, is_breakup_mode) WHERE is_breakup_mode = TRUE;
@@ -700,14 +704,22 @@ ALTER TABLE dating_profiles ADD CONSTRAINT dating_profiles_interested_in_check C
 ALTER TABLE profiles ALTER COLUMN situations_count SET DEFAULT 0;
 ALTER TABLE profiles ADD COLUMN IF NOT EXISTS username TEXT;
 ALTER TABLE profiles ADD COLUMN IF NOT EXISTS avatar_url TEXT;
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS bio TEXT DEFAULT '';
 ALTER TABLE profiles ADD COLUMN IF NOT EXISTS public_bio TEXT DEFAULT '';
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS social_vibe TEXT DEFAULT 'figuring_it_out';
 ALTER TABLE profiles ADD COLUMN IF NOT EXISTS public_vibe TEXT DEFAULT 'figuring_it_out';
 ALTER TABLE profiles ADD COLUMN IF NOT EXISTS public_profile_visible BOOLEAN DEFAULT TRUE;
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS public_location TEXT;
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS profile_completed_at TIMESTAMPTZ;
+UPDATE profiles SET public_profile_visible = TRUE WHERE public_profile_visible IS NULL;
+ALTER TABLE profiles ALTER COLUMN public_profile_visible SET NOT NULL;
+ALTER TABLE profiles DROP CONSTRAINT IF EXISTS profiles_social_vibe_check;
+ALTER TABLE profiles ADD CONSTRAINT profiles_social_vibe_check CHECK (social_vibe IN ('healing', 'dating', 'no_contact', 'figuring_it_out', 'glow_up'));
 ALTER TABLE profiles DROP CONSTRAINT IF EXISTS profiles_public_vibe_check;
 ALTER TABLE profiles ADD CONSTRAINT profiles_public_vibe_check CHECK (public_vibe IN ('healing', 'dating', 'no_contact', 'figuring_it_out', 'glow_up'));
 UPDATE profiles
 SET username = left(
-  lower(trim(both '_' from regexp_replace(COALESCE(display_name, split_part(email, '@', 1), 'user'), '[^a-zA-Z0-9_]+', '_', 'g'))) || '_' || substr(id::text, 1, 6),
+  lower(trim(both '_-' from regexp_replace(COALESCE(display_name, split_part(email, '@', 1), 'user'), '[^a-zA-Z0-9_-]+', '_', 'g'))) || '-' || substr(id::text, 1, 6),
   30
 )
 WHERE username IS NULL;

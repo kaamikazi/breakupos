@@ -8,7 +8,7 @@ export const usernameSchema = z
   .trim()
   .min(USERNAME_MIN_LENGTH)
   .max(USERNAME_MAX_LENGTH)
-  .regex(/^[a-z0-9_]+$/, 'Use lowercase letters, numbers, and underscores only.')
+  .regex(/^[a-z0-9_-]+$/, 'Use lowercase letters, numbers, underscores, and hyphens only.')
 
 export const PUBLIC_VIBE_VALUES = ['healing', 'dating', 'no_contact', 'figuring_it_out', 'glow_up'] as const
 
@@ -28,8 +28,8 @@ export function normalizeUsername(input: string) {
   return input
     .trim()
     .toLowerCase()
-    .replace(/[^a-z0-9_]+/g, '_')
-    .replace(/^_+|_+$/g, '')
+    .replace(/[^a-z0-9_-]+/g, '_')
+    .replace(/^[_-]+|[_-]+$/g, '')
     .slice(0, USERNAME_MAX_LENGTH)
 }
 
@@ -48,7 +48,48 @@ export function fallbackUsername(input: {
 }
 
 export function publicProfilePath(profile: { username?: string | null; id: string }) {
-  return `/u/${profile.username || profile.id}`
+  return profile.username ? `/u/${profile.username}` : null
+}
+
+export const PUBLIC_DISPLAY_NAME_FALLBACK = 'Breakup OS User'
+
+export type PublicProfileSummaryInput = {
+  id: string
+  display_name?: string | null
+  username?: string | null
+  avatar_url?: string | null
+  bio?: string | null
+  public_bio?: string | null
+  social_vibe?: string | null
+  public_vibe?: string | null
+  public_location?: string | null
+  public_profile_visible?: boolean | null
+}
+
+export function getPublicDisplayName(profile: Pick<PublicProfileSummaryInput, 'display_name' | 'username'>) {
+  return profile.display_name?.trim() || profile.username || PUBLIC_DISPLAY_NAME_FALLBACK
+}
+
+export function getPublicBio(profile: Pick<PublicProfileSummaryInput, 'bio' | 'public_bio'>) {
+  return profile.bio?.trim() || profile.public_bio?.trim() || ''
+}
+
+export function getPublicVibe(profile: Pick<PublicProfileSummaryInput, 'social_vibe' | 'public_vibe'>) {
+  return profile.social_vibe?.trim() || profile.public_vibe?.trim() || 'figuring_it_out'
+}
+
+export function toPublicProfileSummary(profile: PublicProfileSummaryInput) {
+  return {
+    id: profile.id,
+    display_name: getPublicDisplayName(profile),
+    username: profile.username ?? null,
+    avatar_url: profile.avatar_url ?? null,
+    bio: getPublicBio(profile),
+    social_vibe: getPublicVibe(profile),
+    public_location: profile.public_location ?? null,
+    public_profile_visible: profile.public_profile_visible ?? true,
+    profile_path: publicProfilePath(profile),
+  }
 }
 
 export function canSendMessageRequest(input: {

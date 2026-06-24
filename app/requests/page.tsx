@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation'
 import { createServerSupabaseClient, createServiceClient } from '@/lib/supabase-server'
+import { publicProfilePath } from '@/lib/social-profile'
 import { MessageRequestsClient } from './MessageRequestsClient'
 
 export default async function MessageRequestsPage() {
@@ -39,6 +40,7 @@ export default async function MessageRequestsPage() {
       sender_name: sender?.display_name ?? 'BreakupOS user',
       sender_username: sender?.username ?? null,
       sender_avatar_url: sender?.avatar_url ?? null,
+      sender_profile_path: sender ? publicProfilePath(sender) : null,
       message_text: request.message_text ?? '',
       status: request.status,
       created_at: request.created_at,

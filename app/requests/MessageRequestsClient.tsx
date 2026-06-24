@@ -12,6 +12,7 @@ type RequestRow = {
   sender_name: string
   sender_username: string | null
   sender_avatar_url: string | null
+  sender_profile_path: string | null
   message_text: string
   status: string
   created_at: string
@@ -75,7 +76,8 @@ export function MessageRequestsClient({ initialRequests }: { initialRequests: Re
       {requests.map(request => (
         <article key={request.id} className="rounded-2xl border border-zinc-800 bg-zinc-900/60 p-4">
           <div className="flex gap-3">
-            <Link href={`/u/${request.sender_username ?? request.sender_id}`} className="flex size-12 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-pink-500/15 font-bold text-pink-200">
+            {request.sender_profile_path ? (
+            <Link href={request.sender_profile_path} className="flex size-12 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-pink-500/15 font-bold text-pink-200">
               {request.sender_avatar_url ? (
                 // eslint-disable-next-line @next/next/no-img-element -- Provider avatars are direct public URLs.
                 <img src={request.sender_avatar_url} alt="" className="h-full w-full object-cover" />
@@ -83,10 +85,24 @@ export function MessageRequestsClient({ initialRequests }: { initialRequests: Re
                 request.sender_name.slice(0, 1).toUpperCase()
               )}
             </Link>
+            ) : (
+              <span className="flex size-12 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-pink-500/15 font-bold text-pink-200">
+                {request.sender_avatar_url ? (
+                  // eslint-disable-next-line @next/next/no-img-element -- Provider avatars are direct public URLs.
+                  <img src={request.sender_avatar_url} alt="" className="h-full w-full object-cover" />
+                ) : (
+                  request.sender_name.slice(0, 1).toUpperCase()
+                )}
+              </span>
+            )}
             <div className="min-w-0 flex-1">
-              <Link href={`/u/${request.sender_username ?? request.sender_id}`} className="font-semibold text-white hover:text-pink-200">
-                {request.sender_name}
-              </Link>
+              {request.sender_profile_path ? (
+                <Link href={request.sender_profile_path} className="font-semibold text-white hover:text-pink-200">
+                  {request.sender_name}
+                </Link>
+              ) : (
+                <span className="font-semibold text-white">{request.sender_name}</span>
+              )}
               <p className="text-xs text-zinc-500">@{request.sender_username ?? 'beta-user'} sent a request</p>
               {request.message_text && <p className="mt-3 rounded-xl bg-zinc-950 p-3 text-sm text-zinc-300">{request.message_text}</p>}
             </div>

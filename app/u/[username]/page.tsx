@@ -3,7 +3,7 @@ import { notFound, redirect } from 'next/navigation'
 import { format } from 'date-fns'
 import { createServerSupabaseClient, createServiceClient } from '@/lib/supabase-server'
 import { computeCommunityVerdict, SOCIAL_SECTION_LABELS, type SocialSection } from '@/lib/social'
-import { getCommunitySummary } from '@/lib/social-profile'
+import { getCommunitySummary, getPublicBio, getPublicDisplayName, getPublicVibe } from '@/lib/social-profile'
 import { MessageRequestButton, PublicProfileSafetyActions } from '@/components/Social/MessageRequestButton'
 
 interface PublicProfilePageProps {
@@ -15,8 +15,11 @@ type PublicProfile = {
   display_name: string | null
   username: string | null
   avatar_url: string | null
+  bio: string | null
   public_bio: string | null
+  social_vibe: string | null
   public_vibe: string | null
+  public_location: string | null
   created_at: string
   public_profile_visible: boolean
 }
@@ -28,28 +31,23 @@ export default async function PublicProfilePage({ params }: PublicProfilePagePro
   if (!user) redirect('/auth')
 
   const serviceClient = createServiceClient()
-  const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(username)
-  const { data: profile } = isUuid
-    ? await serviceClient.from('profiles').select('id,display_name,username,avatar_url,public_bio,public_vibe,created_at,public_profile_visible').eq('id', username).maybeSingle()
-    : await serviceClient.from('profiles').select('id,display_name,username,avatar_url,public_bio,public_vibe,created_at,public_profile_visible').eq('username', username).maybeSingle()
+  const normalizedUsername = decodeURIComponent(username).trim().toLowerCase()
+  const { data: profile } = await serviceClient
+    .from('profiles')
+    .select('id,display_name,username,avatar_url,bio,public_bio,social_vibe,public_vibe,public_location,created_at,public_profile_visible')
+    .eq('username', normalizedUsername)
+    .maybeSingle()
 
   const publicProfile = profile as PublicProfile | null
   if (!publicProfile?.public_profile_visible) notFound()
 
-  const [{ data: posts }, { data: datingProfile }] = await Promise.all([
-    serviceClient
-      .from('social_posts')
-      .select('id,image_url,section,created_at')
-      .eq('user_id', publicProfile.id)
-      .eq('is_deleted', false)
-      .order('created_at', { ascending: false })
-      .limit(24),
-    serviceClient
-      .from('dating_profiles')
-      .select('relationship_goal,city,interests,visibility_status,onboarding_completed')
-      .eq('user_id', publicProfile.id)
-      .maybeSingle(),
-  ])
+  const { data: posts } = await serviceClient
+    .from('social_posts')
+    .select('id,image_url,section,created_at')
+    .eq('user_id', publicProfile.id)
+    .eq('is_deleted', false)
+    .order('created_at', { ascending: false })
+    .limit(24)
 
   const postIds = (posts ?? []).map(post => post.id)
   const { data: reactions } = postIds.length
@@ -69,10 +67,10 @@ export default async function PublicProfilePage({ params }: PublicProfilePagePro
     .slice(0, 3)
     .map(([section]) => SOCIAL_SECTION_LABELS[section])
 
-  const displayName = publicProfile.display_name ?? publicProfile.username ?? 'BreakupOS user'
+  const displayName = getPublicDisplayName(publicProfile)
   const isSelf = publicProfile.id === user.id
-  const publicVibe = publicProfile.public_vibe?.replaceAll('_', ' ') ?? 'figuring it out'
-  const datingVisible = datingProfile?.visibility_status === 'visible' && datingProfile?.onboarding_completed
+  const publicBio = getPublicBio(publicProfile)
+  const publicVibe = getPublicVibe(publicProfile).replaceAll('_', ' ')
 
   return (
     <main className="mx-auto max-w-5xl px-4 py-6">
@@ -81,7 +79,7 @@ export default async function PublicProfilePage({ params }: PublicProfilePagePro
           <div className="flex gap-4">
             <div className="flex size-20 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-pink-500/15 text-3xl font-bold text-pink-200">
               {publicProfile.avatar_url ? (
-                // eslint-disable-next-line @next/next/no-img-element
+                // eslint-disable-next-line @next/next/no-img-element -- Provider avatars are direct public URLs.
                 <img src={publicProfile.avatar_url} alt="" className="h-full w-full object-cover" />
               ) : (
                 displayName.slice(0, 1).toUpperCase()
@@ -90,7 +88,7 @@ export default async function PublicProfilePage({ params }: PublicProfilePagePro
             <div>
               <p className="text-xs font-medium uppercase tracking-wide text-pink-300">Public profile</p>
               <h1 className="mt-1 text-3xl font-bold text-white">{displayName}</h1>
-              <p className="text-sm text-zinc-500">@{publicProfile.username ?? 'beta-user'}</p>
+              <p className="text-sm text-zinc-500">@{publicProfile.username}</p>
               <p className="mt-2 text-sm capitalize text-zinc-400">{publicVibe}</p>
               <p className="mt-1 text-xs text-zinc-600">Member since {format(new Date(publicProfile.created_at), 'MMM yyyy')}</p>
             </div>
@@ -104,8 +102,8 @@ export default async function PublicProfilePage({ params }: PublicProfilePagePro
           )}
         </div>
 
-        {publicProfile.public_bio && (
-          <p className="mt-5 max-w-2xl text-sm leading-relaxed text-zinc-300">{publicProfile.public_bio}</p>
+        {publicBio && (
+          <p className="mt-5 max-w-2xl text-sm leading-relaxed text-zinc-300">{publicBio}</p>
         )}
 
         <div className="mt-5 grid gap-3 sm:grid-cols-4">
@@ -121,8 +119,8 @@ export default async function PublicProfilePage({ params }: PublicProfilePagePro
           )) : (
             <span className="text-xs text-zinc-600">No public post sections yet</span>
           )}
-          {datingVisible && datingProfile?.city && (
-            <span className="rounded-full border border-zinc-700 px-3 py-1 text-xs text-zinc-300">{datingProfile.city}</span>
+          {publicProfile.public_location && (
+            <span className="rounded-full border border-zinc-700 px-3 py-1 text-xs text-zinc-300">{publicProfile.public_location}</span>
           )}
         </div>
 

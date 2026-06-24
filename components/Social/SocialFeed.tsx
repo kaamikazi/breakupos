@@ -174,26 +174,34 @@ export function SocialFeed() {
         />
       ) : (
         <div className="mx-auto flex max-w-xl flex-col gap-6">
-          {posts.map(post => (
+          {posts.map(post => {
+            const avatar = (
+              <span className="flex size-8 items-center justify-center overflow-hidden rounded-full bg-pink-500/15 text-sm font-semibold text-pink-200">
+                {post.avatar_url ? (
+                  // eslint-disable-next-line @next/next/no-img-element -- Provider avatars are direct public URLs.
+                  <img src={post.avatar_url} alt="" className="h-full w-full object-cover" />
+                ) : (
+                  post.display_name.slice(0, 1).toUpperCase()
+                )}
+              </span>
+            )
+            return (
             <article key={post.id} className="overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-900/60">
               <header className="flex items-center justify-between gap-2 px-4 py-3">
                 <div className="flex items-center gap-2">
-                  <Link
-                    href={post.profile_path ?? '#'}
-                    className="flex size-8 items-center justify-center overflow-hidden rounded-full bg-pink-500/15 text-sm font-semibold text-pink-200"
-                    aria-label={`View ${post.display_name}'s profile`}
-                  >
-                    {post.avatar_url ? (
-                      // eslint-disable-next-line @next/next/no-img-element -- Provider avatars are direct public URLs.
-                      <img src={post.avatar_url} alt="" className="h-full w-full object-cover" />
-                    ) : (
-                      post.display_name.slice(0, 1).toUpperCase()
-                    )}
-                  </Link>
-                  <div>
-                    <Link href={post.profile_path ?? '#'} className="text-sm font-medium text-white hover:text-pink-200">
-                      {post.display_name}
+                  {post.profile_path ? (
+                    <Link href={post.profile_path} aria-label={`View ${post.display_name}'s profile`}>
+                      {avatar}
                     </Link>
+                  ) : avatar}
+                  <div>
+                    {post.profile_path ? (
+                      <Link href={post.profile_path} className="text-sm font-medium text-white hover:text-pink-200">
+                        {post.display_name}
+                      </Link>
+                    ) : (
+                      <span className="text-sm font-medium text-white">{post.display_name}</span>
+                    )}
                     <p className="text-xs text-zinc-500">
                       {formatDistanceToNow(new Date(post.created_at), { addSuffix: true })}
                     </p>
@@ -268,16 +276,21 @@ export function SocialFeed() {
                   )}
                 </div>
                 <div className="flex items-center justify-between gap-3 border-t border-zinc-800 pt-3">
-                  <Link href={post.profile_path ?? '#'} className="text-xs font-semibold text-zinc-400 hover:text-pink-200">
-                    View profile
-                  </Link>
+                  {post.profile_path ? (
+                    <Link href={post.profile_path} className="text-xs font-semibold text-zinc-400 hover:text-pink-200">
+                      View profile
+                    </Link>
+                  ) : (
+                    <span className="text-xs text-zinc-600">Profile coming soon</span>
+                  )}
                   {!post.is_owner && (
                     <MessageRequestButton receiverId={post.user_id} sourcePostId={post.id} label="Reach out" compact />
                   )}
                 </div>
               </div>
             </article>
-          ))}
+            )
+          })}
 
           {nextBefore && (
             <Button
