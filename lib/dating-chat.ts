@@ -44,8 +44,10 @@ export type MessageLike = {
 }
 
 export type BlockLike = {
+  id?: string
   blocker_user_id: string
   blocked_user_id: string
+  created_at?: string
 }
 
 export function isMatchParticipant(match: MatchLike | null | undefined, userId: string) {
@@ -63,6 +65,30 @@ export function hasBlockBetween(blocks: BlockLike[] | null | undefined, userA: s
     (block.blocker_user_id === userA && block.blocked_user_id === userB) ||
     (block.blocker_user_id === userB && block.blocked_user_id === userA)
   ))
+}
+
+export function getChatBlockState(blocks: BlockLike[] | null | undefined, currentUserId: string, otherUserId: string) {
+  const blockedByMe = Boolean(blocks?.some(block =>
+    block.blocker_user_id === currentUserId && block.blocked_user_id === otherUserId
+  ))
+  const blockedByOther = Boolean(blocks?.some(block =>
+    block.blocker_user_id === otherUserId && block.blocked_user_id === currentUserId
+  ))
+  return {
+    isBlocked: blockedByMe || blockedByOther,
+    blockedByMe,
+    blockedByOther,
+    composerDisabled: blockedByMe || blockedByOther,
+    message: blockedByMe ? 'You blocked this user.' : blockedByOther ? 'This conversation is unavailable.' : null,
+  }
+}
+
+export function canBlockUser(currentUserId: string, targetUserId: string) {
+  return currentUserId !== targetUserId
+}
+
+export function canUnblockBlock(block: Pick<BlockLike, 'blocker_user_id'> | null | undefined, currentUserId: string) {
+  return Boolean(block && block.blocker_user_id === currentUserId)
 }
 
 export function getDeletedMessageDisplay(message: Pick<MessageLike, 'body' | 'deleted_at'>) {

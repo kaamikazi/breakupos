@@ -3,6 +3,7 @@
 -- Safe to rerun.
 
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS username TEXT;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS avatar_url TEXT;
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS bio TEXT DEFAULT '';
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS public_bio TEXT DEFAULT '';
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS public_profile_visible BOOLEAN DEFAULT TRUE;

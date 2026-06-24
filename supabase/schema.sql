@@ -183,6 +183,7 @@ CREATE TABLE IF NOT EXISTS user_blocks (
   id               UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   blocker_user_id  UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
   blocked_user_id  UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+  reason           TEXT,
   created_at       TIMESTAMPTZ DEFAULT NOW(),
   UNIQUE (blocker_user_id, blocked_user_id),
   CHECK (blocker_user_id <> blocked_user_id)
@@ -535,6 +536,8 @@ DROP POLICY IF EXISTS "Users can view own blocks" ON user_blocks;
 CREATE POLICY "Users can view own blocks" ON user_blocks FOR SELECT USING (auth.uid() = blocker_user_id OR auth.uid() = blocked_user_id);
 DROP POLICY IF EXISTS "Users can insert own blocks" ON user_blocks;
 CREATE POLICY "Users can insert own blocks" ON user_blocks FOR INSERT WITH CHECK (auth.uid() = blocker_user_id);
+DROP POLICY IF EXISTS "Users can delete own blocks" ON user_blocks;
+CREATE POLICY "Users can delete own blocks" ON user_blocks FOR DELETE USING (auth.uid() = blocker_user_id);
 
 DROP POLICY IF EXISTS "Users can view own reports" ON user_reports;
 CREATE POLICY "Users can view own reports" ON user_reports FOR SELECT USING (auth.uid() = reporter_user_id);

@@ -271,6 +271,7 @@ export interface UserBlock {
   id: string
   blocker_user_id: string
   blocked_user_id: string
+  reason: string | null
   created_at: string
 }
 

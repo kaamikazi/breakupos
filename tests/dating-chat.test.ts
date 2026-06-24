@@ -2,8 +2,11 @@ import { describe, expect, it } from 'vitest'
 import {
   buildReplyHelperPrompt,
   buildSituationFromMatchProfile,
+  canBlockUser,
   canSendMessage,
+  canUnblockBlock,
   chatMessageSchema,
+  getChatBlockState,
   getDeletedMessageDisplay,
   getOtherParticipantId,
   getReplyHelperFallback,
@@ -42,6 +45,28 @@ describe('dating chat helpers', () => {
     expect(hasBlockBetween(blocks, 'user-a', 'user-b')).toBe(true)
     expect(canSendMessage({ match, userId: 'user-a', otherUserId: 'user-b', blocks })).toBe(false)
     expect(canSendMessage({ match, userId: 'user-a', otherUserId: 'user-b', blocks: [] })).toBe(true)
+  })
+
+  it('describes blocked chat state for each direction', () => {
+    const blockedByMe = getChatBlockState([{ blocker_user_id: 'user-a', blocked_user_id: 'user-b' }], 'user-a', 'user-b')
+    expect(blockedByMe.isBlocked).toBe(true)
+    expect(blockedByMe.blockedByMe).toBe(true)
+    expect(blockedByMe.composerDisabled).toBe(true)
+    expect(blockedByMe.message).toBe('You blocked this user.')
+
+    const blockedByOther = getChatBlockState([{ blocker_user_id: 'user-b', blocked_user_id: 'user-a' }], 'user-a', 'user-b')
+    expect(blockedByOther.isBlocked).toBe(true)
+    expect(blockedByOther.blockedByOther).toBe(true)
+    expect(blockedByOther.composerDisabled).toBe(true)
+    expect(blockedByOther.message).toBe('This conversation is unavailable.')
+  })
+
+  it('prevents self-blocks and only allows owners to unblock their own block', () => {
+    expect(canBlockUser('user-a', 'user-a')).toBe(false)
+    expect(canBlockUser('user-a', 'user-b')).toBe(true)
+    expect(canUnblockBlock({ blocker_user_id: 'user-a' }, 'user-a')).toBe(true)
+    expect(canUnblockBlock({ blocker_user_id: 'user-b' }, 'user-a')).toBe(false)
+    expect(canUnblockBlock(null, 'user-a')).toBe(false)
   })
 
   it('builds a safety-aware reply helper prompt and fallback', () => {

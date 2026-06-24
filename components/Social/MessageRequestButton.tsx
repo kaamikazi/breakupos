@@ -5,6 +5,7 @@ import { toast } from 'sonner'
 import { MessageCircle, ShieldAlert, UserX, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { InlineAlert } from '@/components/shared/InlineAlert'
+import { ConfirmActionDialog } from '@/components/shared/ConfirmActionDialog'
 
 const PRESETS = [
   'Loved your post.',
@@ -124,6 +125,7 @@ export function MessageRequestButton({
 
 export function PublicProfileSafetyActions({ targetUserId }: { targetUserId: string }) {
   const [loading, setLoading] = useState<'block' | 'report' | null>(null)
+  const [confirmBlockOpen, setConfirmBlockOpen] = useState(false)
 
   const block = async () => {
     setLoading('block')
@@ -168,15 +170,30 @@ export function PublicProfileSafetyActions({ targetUserId }: { targetUserId: str
   }
 
   return (
-    <div className="flex gap-2">
-      <Button type="button" variant="outline" disabled={loading !== null} onClick={report} className="flex-1 border-zinc-700 text-zinc-300">
-        <ShieldAlert className="mr-2 size-4" />
-        Report
-      </Button>
-      <Button type="button" variant="outline" disabled={loading !== null} onClick={block} className="flex-1 border-zinc-700 text-zinc-300">
-        <UserX className="mr-2 size-4" />
-        Block
-      </Button>
-    </div>
+    <>
+      <div className="flex gap-2">
+        <Button type="button" variant="outline" disabled={loading !== null} onClick={report} className="flex-1 border-zinc-700 text-zinc-300">
+          <ShieldAlert className="mr-2 size-4" />
+          Report
+        </Button>
+        <Button type="button" variant="outline" disabled={loading !== null} onClick={() => setConfirmBlockOpen(true)} className="flex-1 border-red-500/40 text-red-200">
+          <UserX className="mr-2 size-4" />
+          Block
+        </Button>
+      </div>
+      <ConfirmActionDialog
+        open={confirmBlockOpen}
+        onOpenChange={setConfirmBlockOpen}
+        title="Block this user?"
+        body="You won't receive messages or requests from this person. You can unblock them later from Safety settings."
+        confirmLabel="Block user"
+        confirming={loading === 'block'}
+        destructive
+        onConfirm={async () => {
+          await block()
+          setConfirmBlockOpen(false)
+        }}
+      />
+    </>
   )
 }

@@ -473,23 +473,26 @@ export interface Database {
       }
       user_blocks: {
         Row: {
-          id: string
-          blocker_user_id: string
-          blocked_user_id: string
-          created_at: string
-        }
-        Insert: {
-          id?: string
-          blocker_user_id: string
-          blocked_user_id: string
-          created_at?: string
-        }
-        Update: {
-          id?: string
-          blocker_user_id?: string
-          blocked_user_id?: string
-          created_at?: string
-        }
+            id: string
+            blocker_user_id: string
+            blocked_user_id: string
+            reason: string | null
+            created_at: string
+          }
+          Insert: {
+            id?: string
+            blocker_user_id: string
+            blocked_user_id: string
+            reason?: string | null
+            created_at?: string
+          }
+          Update: {
+            id?: string
+            blocker_user_id?: string
+            blocked_user_id?: string
+            reason?: string | null
+            created_at?: string
+          }
         Relationships: []
       }
       user_reports: {

@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/shared/EmptyState'
+import { ConfirmActionDialog } from '@/components/shared/ConfirmActionDialog'
 
 type RequestRow = {
   id: string
@@ -22,6 +23,7 @@ type RequestRow = {
 export function MessageRequestsClient({ initialRequests }: { initialRequests: RequestRow[] }) {
   const [requests, setRequests] = useState(initialRequests)
   const [loadingId, setLoadingId] = useState<string | null>(null)
+  const [blockTarget, setBlockTarget] = useState<RequestRow | null>(null)
 
   const act = async (id: string, action: 'accept' | 'decline' | 'block') => {
     setLoadingId(id)
@@ -67,12 +69,11 @@ export function MessageRequestsClient({ initialRequests }: { initialRequests: Re
     }
   }
 
-  if (requests.length === 0) {
-    return <EmptyState title="No message requests yet" description="When someone reaches out from social, requests appear here first." />
-  }
-
   return (
     <div className="space-y-4">
+      {requests.length === 0 && (
+        <EmptyState title="No message requests yet" description="When someone reaches out from social, requests appear here first." />
+      )}
       {requests.map(request => (
         <article key={request.id} className="rounded-2xl border border-zinc-800 bg-zinc-900/60 p-4">
           <div className="flex gap-3">
@@ -120,7 +121,7 @@ export function MessageRequestsClient({ initialRequests }: { initialRequests: Re
               <Button disabled={loadingId === request.id} onClick={() => act(request.id, 'decline')} variant="outline" className="border-zinc-700 text-zinc-300">
                 Decline
               </Button>
-              <Button disabled={loadingId === request.id} onClick={() => act(request.id, 'block')} variant="outline" className="border-zinc-700 text-zinc-300">
+              <Button disabled={loadingId === request.id} onClick={() => setBlockTarget(request)} variant="outline" className="border-red-500/40 text-red-200">
                 Block
               </Button>
               <Button disabled={loadingId === request.id} onClick={() => report(request)} variant="outline" className="border-zinc-700 text-zinc-300">
@@ -134,6 +135,22 @@ export function MessageRequestsClient({ initialRequests }: { initialRequests: Re
           )}
         </article>
       ))}
+      <ConfirmActionDialog
+        open={Boolean(blockTarget)}
+        onOpenChange={open => {
+          if (!open) setBlockTarget(null)
+        }}
+        title="Block this user?"
+        body="You won't receive messages or requests from this person. You can unblock them later from Safety settings."
+        confirmLabel="Block user"
+        confirming={Boolean(blockTarget && loadingId === blockTarget.id)}
+        destructive
+        onConfirm={async () => {
+          if (!blockTarget) return
+          await act(blockTarget.id, 'block')
+          setBlockTarget(null)
+        }}
+      />
     </div>
   )
 }

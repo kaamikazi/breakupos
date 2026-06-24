@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { BlockedUsersClient } from '@/components/Safety/BlockedUsersClient'
 
 const sections = [
   {
@@ -44,6 +45,9 @@ export default function SafetyPage() {
             <p className="mt-2 text-sm leading-relaxed text-zinc-400">{section.body}</p>
           </section>
         ))}
+      </div>
+      <div className="mt-6">
+        <BlockedUsersClient />
       </div>
       <div className="mt-6 rounded-xl border border-cyan-500/20 bg-cyan-500/10 p-4 text-sm text-cyan-100">
         Need data controls? Visit <Link href="/privacy" className="font-medium underline">Privacy</Link> to export or delete your data.

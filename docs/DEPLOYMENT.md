@@ -32,11 +32,12 @@ Use `.env.example` as the source template for local setup.
 4. Run `supabase/schema.sql` in the SQL editor.
 5. For incremental production rollout, also run these focused migrations if you are not rerunning the full schema:
    - `supabase/public-social-profile-fields.sql`
+   - `supabase/block-safety-unblock.sql`
    - `supabase/social-schema.sql`
    - `supabase/social-profiles-message-requests.sql`
    - `supabase/credits-schema.sql`
    - `supabase/fix-auth-profile-trigger.sql`
-6. Important: a Vercel deploy does not update Supabase tables. If production errors with `column profiles_1.username does not exist`, run `supabase/public-social-profile-fields.sql` in the Supabase SQL editor, confirm it succeeds, then redeploy or refresh the app.
+6. Important: a Vercel deploy does not update Supabase tables. If production errors with `column profiles_1.username does not exist` or `column profiles_1.avatar_url does not exist`, run `supabase/public-social-profile-fields.sql` in the Supabase SQL editor, confirm it succeeds, then redeploy or refresh the app.
 7. Confirm RLS is enabled on:
    - `profiles`
    - `situations`
@@ -92,7 +93,7 @@ Use `.env.example` as the source template for local setup.
 ## Database Migration Steps
 
 1. Back up production data.
-2. For tonight's social profile launch, run `supabase/public-social-profile-fields.sql` first. It adds `profiles.username`, `bio`, `public_profile_visible`, `social_vibe`, `public_location`, and `profile_completed_at`, then backfills safe usernames and creates a unique `lower(username)` index.
+2. For tonight's social profile launch, run `supabase/public-social-profile-fields.sql` first. It adds `profiles.username`, `avatar_url`, `bio`, `public_profile_visible`, `social_vibe`, `public_location`, and `profile_completed_at`, then backfills safe usernames and creates a unique `lower(username)` index.
 3. Run the full `supabase/schema.sql` for new environments, or the focused migrations listed above for existing environments.
 4. Confirm indexes were created.
 5. Confirm policies exist and do not duplicate.

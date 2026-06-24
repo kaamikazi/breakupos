@@ -117,5 +117,6 @@ describe('message request rules', () => {
     expect(requestActionToStatus('accept')).toBe('accepted')
     expect(requestActionToStatus('decline')).toBe('declined')
     expect(requestActionToStatus('block')).toBe('blocked')
+    expect(requestActionToStatus('decline')).not.toBe(requestActionToStatus('block'))
   })
 })

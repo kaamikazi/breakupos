@@ -3,13 +3,19 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { Bot, Copy, Send, Trash2 } from 'lucide-react'
+import { ArrowLeft, Bot, Copy, MoreHorizontal, RefreshCw, Send, Shield, Trash2, Unlock, UserX } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Textarea } from '@/components/ui/textarea'
+import { ConfirmActionDialog } from '@/components/shared/ConfirmActionDialog'
 import { createClient } from '@/lib/supabase'
-import { CHAT_MESSAGE_MAX_LENGTH, REPLY_HELPER_TONES, getDeletedMessageDisplay, type ReplyHelperTone } from '@/lib/dating-chat'
+import {
+  CHAT_MESSAGE_MAX_LENGTH,
+  REPLY_HELPER_TONES,
+  getChatBlockState,
+  getDeletedMessageDisplay,
+  type ReplyHelperTone,
+} from '@/lib/dating-chat'
 import type { DatingMessage, DatingProfileWithPhotos } from '@/types'
 
 interface MatchChatClientProps {
@@ -52,7 +58,18 @@ export function MatchChatClient({
   const [converting, setConverting] = useState(false)
   const [blocked, setBlocked] = useState(isBlocked)
   const [blockedByMe, setBlockedByMe] = useState(blockedByCurrentUser)
+  const [confirmBlockOpen, setConfirmBlockOpen] = useState(false)
+  const [confirmUnblockOpen, setConfirmUnblockOpen] = useState(false)
+  const [blocking, setBlocking] = useState(false)
+  const [unblocking, setUnblocking] = useState(false)
+  const [actionsOpen, setActionsOpen] = useState(false)
   const bottomRef = useRef<HTMLDivElement | null>(null)
+  const primaryPhoto = otherProfile.photos[0]?.photo_url
+  const blockState = getChatBlockState(
+    blocked ? [{ blocker_user_id: blockedByMe ? currentUserId : otherProfile.user_id, blocked_user_id: blockedByMe ? otherProfile.user_id : currentUserId }] : [],
+    currentUserId,
+    otherProfile.user_id
+  )
 
   const sortedMessages = useMemo(
     () => [...messages].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()),
@@ -100,10 +117,22 @@ export function MatchChatClient({
     }
   }, [matchId])
 
+  const refresh = async () => {
+    setLoading(true)
+    setError(null)
+    const response = await fetch(`/api/dating/matches/${matchId}/messages`)
+    setLoading(false)
+    if (!response.ok) {
+      setError('Could not refresh messages.')
+      return
+    }
+    setMessages(await response.json())
+  }
+
   const sendMessage = async (event: FormEvent) => {
     event.preventDefault()
     const trimmed = body.trim()
-    if (!trimmed || blocked) return
+    if (!trimmed || blockState.composerDisabled) return
     setSending(true)
     setError(null)
     const response = await fetch(`/api/dating/matches/${matchId}/messages`, {
@@ -195,65 +224,124 @@ export function MatchChatClient({
       return
     }
     toast.success('Report submitted')
+    setActionsOpen(false)
   }
 
   const blockUser = async () => {
+    setBlocking(true)
     const response = await fetch('/api/dating/block', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ target_user_id: otherProfile.user_id }),
     })
+    setBlocking(false)
     if (!response.ok) {
-      toast.error('Could not block user')
+      const payload = await response.json().catch(() => null)
+      toast.error(typeof payload?.error === 'string' ? payload.error : 'Could not block user')
       return
     }
     setBlocked(true)
     setBlockedByMe(true)
+    setConfirmBlockOpen(false)
+    setActionsOpen(false)
     toast.success('User blocked')
   }
 
-  const refresh = async () => {
-    setLoading(true)
-    setError(null)
-    const response = await fetch(`/api/dating/matches/${matchId}/messages`)
-    setLoading(false)
+  const unblockUser = async () => {
+    setUnblocking(true)
+    const response = await fetch('/api/dating/block', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ target_user_id: otherProfile.user_id }),
+    })
+    setUnblocking(false)
     if (!response.ok) {
-      setError('Could not refresh messages.')
+      const payload = await response.json().catch(() => null)
+      toast.error(typeof payload?.error === 'string' ? payload.error : 'Could not unblock user')
       return
     }
-    setMessages(await response.json())
+    setBlocked(false)
+    setBlockedByMe(false)
+    setConfirmUnblockOpen(false)
+    toast.success('User unblocked')
   }
 
   return (
-    <section className="grid gap-4">
-      <Card className="border-zinc-800 bg-zinc-900">
-        <CardHeader className="border-b border-zinc-800">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <CardTitle className="text-white">Messages</CardTitle>
-              <CardDescription>Matched with {otherProfile.display_name}. Keep it consensual, kind, and low-pressure.</CardDescription>
-            </div>
-            <Button onClick={refresh} disabled={loading} variant="outline" className="border-zinc-700 text-zinc-300">
-              {loading ? 'Refreshing...' : 'Refresh'}
-            </Button>
-          </div>
-        </CardHeader>
-        <CardContent className="p-0">
-          <div className="h-[52vh] min-h-[360px] overflow-y-auto p-4">
-            {sortedMessages.length === 0 ? (
-              <div className="flex h-full items-center justify-center rounded-xl border border-dashed border-zinc-800 text-center text-sm text-zinc-500">
-                No messages yet. Start simple and respectful.
-              </div>
+    <section className="overflow-hidden rounded-3xl border border-zinc-800 bg-zinc-950 shadow-2xl shadow-black/30">
+      <div className="sticky top-0 z-10 border-b border-zinc-800 bg-zinc-950/95 px-3 py-3 backdrop-blur sm:px-4">
+        <div className="flex items-center gap-3">
+          <Link href="/matches" className="inline-flex size-10 items-center justify-center rounded-full border border-zinc-800 text-zinc-300 sm:hidden" aria-label="Back to matches">
+            <ArrowLeft className="size-5" />
+          </Link>
+          <div className="flex size-11 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-pink-500/15 text-lg font-bold text-pink-200">
+            {primaryPhoto ? (
+              // eslint-disable-next-line @next/next/no-img-element -- User uploaded dating photos are served directly in beta.
+              <img src={primaryPhoto} alt="" className="h-full w-full object-cover" />
             ) : (
-              <div className="space-y-3">
-                {sortedMessages.map(message => {
-                  const mine = message.sender_id === currentUserId
-                  const deleted = Boolean(message.deleted_at)
-                  return (
-                    <div key={message.id} className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
-                      <div className={`max-w-[82%] rounded-2xl px-4 py-2 text-sm ${mine ? 'bg-pink-500 text-white' : 'bg-zinc-800 text-zinc-100'} ${deleted ? 'italic opacity-70' : ''}`}>
-                        <p className="whitespace-pre-wrap break-words">{getDeletedMessageDisplay(message)}</p>
-                        <div className={`mt-1 flex items-center gap-2 text-[11px] ${mine ? 'text-pink-100' : 'text-zinc-400'}`}>
+              otherProfile.display_name.slice(0, 1).toUpperCase()
+            )}
+          </div>
+          <div className="min-w-0 flex-1">
+            <h2 className="truncate text-base font-bold text-white">{otherProfile.display_name}</h2>
+            <p className="truncate text-xs text-zinc-500">{blockState.isBlocked ? blockState.message : 'Matched conversation'}</p>
+          </div>
+          <Button type="button" onClick={refresh} disabled={loading} variant="ghost" size="icon" className="text-zinc-300">
+            <RefreshCw className={`size-4 ${loading ? 'animate-spin' : ''}`} />
+          </Button>
+          <div className="relative">
+            <Button type="button" onClick={() => setActionsOpen(open => !open)} variant="ghost" size="icon" className="text-zinc-300" aria-label="Conversation actions">
+              <MoreHorizontal className="size-5" />
+            </Button>
+            {actionsOpen && (
+              <div className="absolute right-0 top-12 z-20 w-56 rounded-2xl border border-zinc-800 bg-zinc-950 p-2 shadow-xl">
+                <button type="button" onClick={reportUser} className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm text-zinc-200 hover:bg-zinc-900">
+                  <Shield className="size-4 text-amber-300" /> Report user
+                </button>
+                {blockedByMe ? (
+                  <button type="button" onClick={() => setConfirmUnblockOpen(true)} className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm text-zinc-200 hover:bg-zinc-900">
+                    <Unlock className="size-4 text-cyan-300" /> Unblock user
+                  </button>
+                ) : (
+                  <button type="button" disabled={blocked && !blockedByMe} onClick={() => setConfirmBlockOpen(true)} className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm text-red-200 hover:bg-red-500/10 disabled:cursor-not-allowed disabled:opacity-50">
+                    <UserX className="size-4" /> Block user
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <div className="flex h-[calc(100dvh-220px)] min-h-[520px] flex-col sm:h-[720px]">
+        <div className="flex-1 overflow-y-auto px-3 py-4 sm:px-5">
+          {sortedMessages.length === 0 ? (
+            <div className="flex h-full items-center justify-center">
+              <div className="max-w-sm rounded-3xl border border-dashed border-zinc-800 bg-zinc-900/70 p-6 text-center">
+                <div className="mx-auto mb-3 flex size-12 items-center justify-center rounded-2xl bg-pink-500/15 text-pink-200">
+                  <Send className="size-5" />
+                </div>
+                <h3 className="font-semibold text-white">Start the conversation gently</h3>
+                <p className="mt-2 text-sm leading-relaxed text-zinc-500">No messages yet. A simple, respectful opener is enough.</p>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {sortedMessages.map((message, index) => {
+                const mine = message.sender_id === currentUserId
+                const deleted = Boolean(message.deleted_at)
+                const previous = sortedMessages[index - 1]
+                const showDate = !previous || new Date(previous.created_at).toDateString() !== new Date(message.created_at).toDateString()
+                return (
+                  <div key={message.id}>
+                    {showDate && (
+                      <div className="my-4 text-center text-[11px] font-medium uppercase tracking-wide text-zinc-600">
+                        {new Date(message.created_at).toLocaleDateString([], { month: 'short', day: 'numeric' })}
+                      </div>
+                    )}
+                    <div className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
+                      <div className={`max-w-[82%] rounded-3xl px-4 py-2.5 text-sm shadow-sm sm:max-w-[70%] ${mine ? 'rounded-br-md bg-pink-500 text-white' : 'rounded-bl-md bg-zinc-800 text-zinc-100'} ${deleted ? 'italic opacity-70' : ''}`}>
+                        <p className="whitespace-pre-wrap break-words leading-relaxed">{getDeletedMessageDisplay(message)}</p>
+                        <div className={`mt-1.5 flex items-center gap-2 text-[11px] ${mine ? 'text-pink-100' : 'text-zinc-400'}`}>
                           <span>{new Date(message.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                           {mine && message.read_at && !deleted && <span>Seen</span>}
                           {mine && !deleted && (
@@ -264,120 +352,124 @@ export function MatchChatClient({
                         </div>
                       </div>
                     </div>
-                  )
-                })}
-                <div ref={bottomRef} />
-              </div>
-            )}
-          </div>
-
-          {error && <div className="mx-4 mb-3 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-200">{error}</div>}
-
-          {blocked ? (
-            <div className="border-t border-zinc-800 p-4">
-              <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm leading-relaxed text-amber-100">
-                Messaging is disabled because {blockedByMe ? 'you blocked this user' : 'one of you blocked the other'}. Older messages remain visible for your records.
-              </div>
+                  </div>
+                )
+              })}
+              <div ref={bottomRef} />
             </div>
-          ) : (
-            <form onSubmit={sendMessage} className="border-t border-zinc-800 p-4">
-              <div className="flex flex-col gap-3 sm:flex-row">
-                <Textarea
-                  value={body}
-                  onChange={event => setBody(event.target.value.slice(0, CHAT_MESSAGE_MAX_LENGTH))}
-                  placeholder="Write a message..."
-                  className="min-h-20 flex-1"
-                />
-                <Button type="submit" disabled={sending || !body.trim()} className="bg-pink-500 text-white hover:bg-pink-600 sm:self-end">
-                  <Send className="mr-2 size-4" /> {sending ? 'Sending...' : 'Send'}
+          )}
+        </div>
+
+        {error && <div className="mx-3 mb-3 rounded-2xl border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-200 sm:mx-5">{error}</div>}
+
+        {blockState.isBlocked ? (
+          <div className="border-t border-zinc-800 bg-zinc-950 p-3 sm:p-4">
+            <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm leading-relaxed text-amber-100">
+              <p className="font-semibold">{blockState.message}</p>
+              <p className="mt-1 text-amber-100/80">{blockedByMe ? 'Messages are paused. Older messages stay visible, and you can unblock later.' : 'Messages are paused for privacy and safety.'}</p>
+              <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+                {blockedByMe && (
+                  <Button type="button" onClick={() => setConfirmUnblockOpen(true)} className="bg-cyan-300 text-zinc-950 hover:bg-cyan-200">
+                    <Unlock className="mr-2 size-4" /> Unblock
+                  </Button>
+                )}
+                <Button type="button" onClick={() => router.push('/matches')} variant="outline" className="border-zinc-700 text-zinc-200">
+                  Back to messages
                 </Button>
               </div>
-              <p className="mt-2 text-xs text-zinc-500">{body.length}/{CHAT_MESSAGE_MAX_LENGTH}</p>
-            </form>
-          )}
-        </CardContent>
-      </Card>
-
-      <Card className="border-zinc-800 bg-zinc-900">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-white"><Bot className="size-5 text-cyan-300" /> AI reply helper</CardTitle>
-          <CardDescription>Pro-only reply drafting from recent chat context. Safety guidance is included for coercion, harassment, abuse, stalking, or crisis.</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          {!isPro ? (
-            <div className="rounded-lg border border-zinc-800 bg-zinc-950 p-4 text-sm text-zinc-400">
-              Upgrade to Pro to draft replies from match context.
             </div>
+          </div>
+        ) : (
+          <form onSubmit={sendMessage} className="sticky bottom-0 border-t border-zinc-800 bg-zinc-950 p-3 sm:p-4">
+            <div className="flex items-end gap-2 rounded-3xl border border-zinc-800 bg-zinc-900 p-2">
+              <Textarea
+                value={body}
+                onChange={event => setBody(event.target.value.slice(0, CHAT_MESSAGE_MAX_LENGTH))}
+                placeholder="Write a message..."
+                className="max-h-36 min-h-12 flex-1 resize-none border-0 bg-transparent px-3 py-2 focus-visible:ring-0"
+              />
+              <Button type="submit" disabled={sending || !body.trim()} size="icon" className="size-11 shrink-0 rounded-full bg-pink-500 text-white hover:bg-pink-600">
+                <Send className="size-4" />
+                <span className="sr-only">{sending ? 'Sending' : 'Send'}</span>
+              </Button>
+            </div>
+            <div className="mt-2 flex items-center justify-between text-xs text-zinc-600">
+              <span>Keep it respectful and low-pressure.</span>
+              <span>{body.length}/{CHAT_MESSAGE_MAX_LENGTH}</span>
+            </div>
+          </form>
+        )}
+      </div>
+
+      <div className="grid gap-3 border-t border-zinc-800 bg-zinc-950 p-4 lg:grid-cols-2">
+        <div className="rounded-2xl border border-cyan-500/20 bg-cyan-500/10 p-4">
+          <div className="flex items-center gap-2 text-sm font-semibold text-cyan-100"><Bot className="size-4" /> AI reply helper</div>
+          {!isPro ? (
+            <p className="mt-2 text-sm text-cyan-100/70">Pro can draft replies and analyze recent chat context.</p>
           ) : (
-            <>
-              <div className="flex flex-col gap-3 sm:flex-row">
-                <select
-                  value={tone}
-                  onChange={event => setTone(event.target.value as ReplyHelperTone)}
-                  className="h-10 rounded-md border border-zinc-700 bg-zinc-950 px-3 text-sm text-zinc-100"
-                >
+            <div className="mt-3 space-y-3">
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <select value={tone} onChange={event => setTone(event.target.value as ReplyHelperTone)} className="h-10 rounded-xl border border-zinc-700 bg-zinc-950 px-3 text-sm text-zinc-100">
                   {REPLY_HELPER_TONES.map(item => <option key={item} value={item}>{item}</option>)}
                 </select>
-                <Button onClick={generateReply} disabled={suggesting} variant="outline" className="border-zinc-700 text-zinc-300">
+                <Button onClick={generateReply} disabled={suggesting} variant="outline" className="border-cyan-300/40 text-cyan-100">
                   {suggesting ? 'Drafting...' : 'Draft reply'}
+                </Button>
+                <Button onClick={analyzeChat} disabled={analyzing} variant="outline" className="border-zinc-700 text-zinc-200">
+                  {analyzing ? 'Analyzing...' : 'Analyze'}
                 </Button>
               </div>
               {suggestion && (
-                <div className="rounded-xl border border-cyan-500/20 bg-cyan-500/10 p-4 text-sm text-cyan-50">
+                <div className="rounded-xl border border-cyan-500/20 bg-zinc-950/70 p-3 text-sm text-cyan-50">
                   <p className="whitespace-pre-wrap">{suggestion}</p>
-                  <Button
-                    type="button"
-                    onClick={() => {
-                      setBody(suggestion)
-                      toast.success('Suggestion copied into composer')
-                    }}
-                    className="mt-3 bg-cyan-300 text-zinc-950 hover:bg-cyan-200"
-                  >
+                  <Button type="button" onClick={() => setBody(suggestion)} className="mt-3 bg-cyan-300 text-zinc-950 hover:bg-cyan-200">
                     <Copy className="mr-2 size-4" /> Use suggestion
                   </Button>
                 </div>
               )}
-              <div className="border-t border-zinc-800 pt-3">
-                <Button onClick={analyzeChat} disabled={analyzing} variant="outline" className="border-zinc-700 text-zinc-300">
-                  {analyzing ? 'Analyzing...' : 'Analyze recent chat'}
-                </Button>
-                {chatAnalysis && (
-                  <div className="mt-3 rounded-xl border border-zinc-800 bg-zinc-950 p-4 text-sm text-zinc-300">
-                    <div className="font-semibold text-white">Interest level: {chatAnalysis.interestLevel}%</div>
-                    <p className="mt-1">Consistency: {chatAnalysis.consistency}</p>
-                    <p className="mt-1">Mixed signals: {chatAnalysis.mixedSignals.join('; ')}</p>
-                    <p className="mt-1">Red flags: {chatAnalysis.redFlags.join('; ')}</p>
-                    <p className="mt-1">Next move: {chatAnalysis.recommendedNextMove}</p>
-                    <p className="mt-2 text-xs text-zinc-500">Confidence: {chatAnalysis.confidence}%. AI can be wrong; treat this as reflection, not proof.</p>
-                  </div>
-                )}
-              </div>
-            </>
+              {chatAnalysis && (
+                <div className="rounded-xl border border-zinc-800 bg-zinc-950/70 p-3 text-sm text-zinc-300">
+                  <p className="font-semibold text-white">Interest level: {chatAnalysis.interestLevel}%</p>
+                  <p className="mt-1">Consistency: {chatAnalysis.consistency}</p>
+                  <p className="mt-1">Mixed signals: {chatAnalysis.mixedSignals.join('; ') || 'None flagged'}</p>
+                  <p className="mt-1">Red flags: {chatAnalysis.redFlags.join('; ') || 'None flagged'}</p>
+                  <p className="mt-1">Next move: {chatAnalysis.recommendedNextMove}</p>
+                  <p className="mt-2 text-xs text-zinc-500">Confidence: {chatAnalysis.confidence}%. AI can be wrong; use judgment.</p>
+                </div>
+              )}
+            </div>
           )}
-        </CardContent>
-      </Card>
+        </div>
 
-      <div className="rounded-xl border border-amber-500/20 bg-amber-500/10 p-4 text-sm leading-relaxed text-amber-100">
-        If a message feels coercive, threatening, explicit without consent, about minors, stalker-like, or crisis-related, stop engaging and use safety support. You can report or block without deleting the message history. Read the <Link href="/safety" className="underline">Safety Center</Link>.
-        <div className="mt-3 flex flex-col gap-2 sm:flex-row">
-          <Button type="button" onClick={reportUser} variant="outline" className="border-amber-300/40 text-amber-100">
-            Report user
-          </Button>
-          <Button type="button" onClick={blockUser} disabled={blocked} variant="outline" className="border-red-500/40 text-red-200">
-            {blocked ? 'Blocked' : 'Block user'}
-          </Button>
+        <div className="rounded-2xl border border-amber-500/20 bg-amber-500/10 p-4 text-sm leading-relaxed text-amber-100">
+          If a message feels coercive, threatening, explicit without consent, about minors, stalker-like, or crisis-related, stop engaging and use safety support. Read the <Link href="/safety" className="underline">Safety Center</Link>.
+          <div className="mt-3">
+            <Button onClick={convertMatch} disabled={converting} className="w-full bg-zinc-100 text-zinc-950 hover:bg-white">
+              {converting ? 'Creating...' : 'Track this in Breakup OS'}
+            </Button>
+          </div>
         </div>
       </div>
 
-      <div className="flex flex-col gap-3 rounded-xl border border-zinc-800 bg-zinc-900 p-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h3 className="font-semibold text-white">Track this in Breakup OS</h3>
-          <p className="text-sm text-zinc-400">Create a situation from this match without duplicating an existing conversion.</p>
-        </div>
-        <Button onClick={convertMatch} disabled={converting} className="bg-zinc-100 text-zinc-950 hover:bg-white">
-          {converting ? 'Creating...' : 'Track this in Breakup OS'}
-        </Button>
-      </div>
+      <ConfirmActionDialog
+        open={confirmBlockOpen}
+        onOpenChange={setConfirmBlockOpen}
+        title="Block this user?"
+        body="You won't receive messages or requests from this person. You can unblock them later from Safety settings."
+        confirmLabel="Block user"
+        confirming={blocking}
+        destructive
+        onConfirm={blockUser}
+      />
+      <ConfirmActionDialog
+        open={confirmUnblockOpen}
+        onOpenChange={setConfirmUnblockOpen}
+        title="Unblock this user?"
+        body="They may be able to send requests or messages again if the rest of the app rules allow it. This will not automatically create a match or notify them."
+        confirmLabel="Unblock user"
+        confirming={unblocking}
+        onConfirm={unblockUser}
+      />
     </section>
   )
 }
