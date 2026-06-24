@@ -25,6 +25,7 @@ CREATE TABLE IF NOT EXISTS profiles (
   public_profile_visible BOOLEAN NOT NULL DEFAULT TRUE,
   public_location        TEXT,
   profile_completed_at   TIMESTAMPTZ,
+  beta_approved_at       TIMESTAMPTZ,
   plan                   TEXT DEFAULT 'free' CHECK (plan IN ('free', 'pro')),
   situations_count       INT DEFAULT 0,
   situations_limit       INT DEFAULT 5,
@@ -716,6 +717,7 @@ ALTER TABLE profiles ADD COLUMN IF NOT EXISTS public_vibe TEXT DEFAULT 'figuring
 ALTER TABLE profiles ADD COLUMN IF NOT EXISTS public_profile_visible BOOLEAN DEFAULT TRUE;
 ALTER TABLE profiles ADD COLUMN IF NOT EXISTS public_location TEXT;
 ALTER TABLE profiles ADD COLUMN IF NOT EXISTS profile_completed_at TIMESTAMPTZ;
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS beta_approved_at TIMESTAMPTZ;
 UPDATE profiles SET public_profile_visible = TRUE WHERE public_profile_visible IS NULL;
 ALTER TABLE profiles ALTER COLUMN public_profile_visible SET NOT NULL;
 ALTER TABLE profiles DROP CONSTRAINT IF EXISTS profiles_social_vibe_check;

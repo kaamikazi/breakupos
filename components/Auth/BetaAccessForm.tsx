@@ -4,14 +4,17 @@ import { useRef, useState } from 'react'
 import { InlineAlert } from '@/components/shared/InlineAlert'
 import { toast } from 'sonner'
 
-export function BetaAccessForm() {
+interface BetaAccessFormProps {
+  signedIn?: boolean
+}
+
+export function BetaAccessForm({ signedIn = false }: BetaAccessFormProps) {
   const inputRef = useRef<HTMLInputElement>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
 
   const submit = async () => {
-    // Read directly from DOM — works with autofill and any input method
     const trimmed = inputRef.current?.value.trim() ?? ''
     if (!trimmed || loading) return
     setLoading(true)
@@ -25,14 +28,14 @@ export function BetaAccessForm() {
       })
       const data = await res.json()
       if (!res.ok) {
-        const message = data.error ?? 'Invalid beta code'
+        const message = data.error ?? 'Invalid beta password'
         setError(message)
         toast.error(message)
         return
       }
       setSuccess(true)
       toast.success('Beta access unlocked')
-      window.location.replace('/auth')
+      window.location.replace(data.redirectTo ?? (signedIn ? '/dashboard' : '/auth'))
     } catch {
       const msg = 'Could not verify beta access. Check your connection and try again.'
       setError(msg)
@@ -45,31 +48,30 @@ export function BetaAccessForm() {
   return (
     <div className="space-y-4">
       <InlineAlert tone="info">
-        BreakupOS is in private beta. Enter your invite code to unlock sign-in. Existing signed-in beta users can continue normally.
+        BreakupOS is in private beta. Enter the beta password to unlock this account. If you do not have one yet, request access from the beta owner.
       </InlineAlert>
 
       <input
         ref={inputRef}
         defaultValue=""
         onKeyDown={e => e.key === 'Enter' && submit()}
-        placeholder="Beta access code"
+        placeholder="Beta password"
         type="text"
         disabled={loading}
         className="h-10 w-full rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-white placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-pink-500 disabled:opacity-50"
       />
 
       {error && (
-        <InlineAlert tone="warning" title="Code did not work">
+        <InlineAlert tone="warning" title="Password did not work">
           {error}
         </InlineAlert>
       )}
       {success && (
         <InlineAlert tone="success" title="Beta unlocked">
-          Sending you to sign in now.
+          Sending you in now.
         </InlineAlert>
       )}
 
-      {/* Always enabled — submit() guards against empty value internally */}
       <button
         type="button"
         onClick={submit}

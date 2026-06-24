@@ -8,7 +8,8 @@ Breakup OS Dating is private-beta software. These limitations should be understo
 - Profile photos use the Supabase `profile-photos` bucket. The current beta assumes a public bucket unless you configure a private/signed URL strategy.
 - Rate limits are in-memory. They reset on server restart and do not coordinate across multiple server instances.
 - Screenshots for message analysis are previewed locally and are not stored by default, but OCR is not fully integrated.
-- Export/delete is designed to cover app data, but storage deletion should be manually verified in Supabase before beta launch.
+- Export/delete is designed to cover app data. Full account deletion also attempts to remove profile-photo and social-post storage objects before deleting the Supabase Auth user; manually verify this on a test account before beta launch.
+- Abuse reports involving a deleted account are removed in the current beta implementation. Before a broader launch, decide whether a limited, anonymized safety-retention policy is required.
 
 ## Product Behavior
 

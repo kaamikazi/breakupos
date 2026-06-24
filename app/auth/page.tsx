@@ -1,9 +1,7 @@
-import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { createServerSupabaseClient } from '@/lib/supabase-server'
-import { BETA_ACCESS_COOKIE, isBetaAccessEnabled } from '@/lib/beta'
+import { isBetaAccessEnabled } from '@/lib/beta'
 import { AuthOptions } from '@/components/Auth/AuthOptions'
-import { BetaAccessForm } from '@/components/Auth/BetaAccessForm'
 import { InlineAlert } from '@/components/shared/InlineAlert'
 
 interface AuthPageProps {
@@ -30,10 +28,7 @@ export default async function AuthPage({ searchParams }: AuthPageProps) {
   const { data: { user } } = await supabase.auth.getUser()
   if (user) redirect('/dashboard')
 
-  const cookieStore = await cookies()
   const betaEnabled = isBetaAccessEnabled()
-  const hasBetaAccess = cookieStore.get(BETA_ACCESS_COOKIE)?.value === 'granted'
-  const shouldAskForCode = betaEnabled && !hasBetaAccess
 
   return (
     <div className="min-h-[calc(100vh-56px)] flex items-center justify-center p-4">
@@ -43,16 +38,16 @@ export default async function AuthPage({ searchParams }: AuthPageProps) {
             Private beta
           </div>
           <h1 className="text-3xl font-bold text-white mb-2">
-            {shouldAskForCode ? 'Enter your beta code' : 'Sign in'}
+            Sign in
           </h1>
           <p className="text-zinc-400 text-sm">
-            {shouldAskForCode
-              ? 'We are keeping the beta small while the product hardens.'
+            {betaEnabled
+              ? 'Sign in first, then enter the beta password once to unlock your account.'
               : 'Use the same account each time so your private relationship data stays with you.'}
           </p>
         </div>
 
-        {shouldAskForCode ? <BetaAccessForm /> : <AuthOptions />}
+        <AuthOptions />
 
         {error && (
           <div className="mt-4">

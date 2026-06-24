@@ -1,5 +1,5 @@
 import { createServiceClient } from '@/lib/supabase-server'
-import { fallbackUsername } from '@/lib/social-profile'
+import { USERNAME_MAX_LENGTH, fallbackUsername } from '@/lib/social-profile'
 
 interface AuthUserProfileInput {
   id: string
@@ -11,14 +11,27 @@ interface AuthUserProfileInput {
   }
 }
 
-export async function ensureProfileForUser(user: AuthUserProfileInput) {
-  const supabase = createServiceClient()
+export function buildProfileDefaultsForUser(user: AuthUserProfileInput) {
   const email = user.email ?? `${user.id}@local.user`
-  const fallbackName = email.includes('@') ? email.split('@')[0] : 'Beta user'
   const displayName =
     user.user_metadata?.full_name ??
     user.user_metadata?.name ??
-    fallbackName
+    'Breakup OS User'
+  const baseUsername = fallbackUsername({ email, displayName, userId: user.id })
+  const suffix = `-${user.id.slice(0, 6)}`
+  const username = `${baseUsername.slice(0, USERNAME_MAX_LENGTH - suffix.length)}${suffix}`
+
+  return {
+    email,
+    displayName,
+    publicDisplayName: displayName,
+    username,
+  }
+}
+
+export async function ensureProfileForUser(user: AuthUserProfileInput) {
+  const supabase = createServiceClient()
+  const { email, displayName, publicDisplayName, username } = buildProfileDefaultsForUser(user)
 
   const { data } = await supabase
     .from('profiles')
@@ -26,7 +39,8 @@ export async function ensureProfileForUser(user: AuthUserProfileInput) {
       id: user.id,
       email,
       display_name: displayName,
-      username: fallbackUsername({ email, displayName, userId: user.id }),
+      public_display_name: publicDisplayName,
+      username,
       plan: 'free',
       situations_count: 0,
       situations_limit: 5,
@@ -35,6 +49,22 @@ export async function ensureProfileForUser(user: AuthUserProfileInput) {
     }, { onConflict: 'id', ignoreDuplicates: true })
     .select('*')
     .single()
+
+  if (!data) return data
+
+  if (!data.public_display_name || !data.username) {
+    const { data: updated } = await supabase
+      .from('profiles')
+      .update({
+        public_display_name: data.public_display_name ?? displayName,
+        username: data.username ?? username,
+      })
+      .eq('id', user.id)
+      .select('*')
+      .single()
+
+    return updated ?? data
+  }
 
   return data
 }

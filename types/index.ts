@@ -61,6 +61,7 @@ export interface Profile {
   public_location: string | null
   profile_completed_at: string | null
   public_profile_visible: boolean
+  beta_approved_at: string | null
   plan: 'free' | 'pro'
   situations_count: number
   situations_limit: number

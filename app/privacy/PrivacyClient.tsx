@@ -4,6 +4,8 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { createClient } from '@/lib/supabase'
+import { DELETE_ACCOUNT_CONFIRMATION, hasValidDeleteAccountConfirmation } from '@/lib/privacy'
 import { toast } from 'sonner'
 
 export function PrivacyClient() {
@@ -16,6 +18,9 @@ export function PrivacyClient() {
     typeof window !== 'undefined' && localStorage.getItem('breakupos-panic-hide') === 'true'
   )
   const [deleting, setDeleting] = useState(false)
+  const [accountDeleting, setAccountDeleting] = useState(false)
+  const [showDeleteAccount, setShowDeleteAccount] = useState(false)
+  const [deleteConfirmation, setDeleteConfirmation] = useState('')
 
   const savePin = () => {
     if (pin.length < 4) {
@@ -73,6 +78,29 @@ export function PrivacyClient() {
     }
   }
 
+  const deleteAccount = async () => {
+    if (!hasValidDeleteAccountConfirmation(deleteConfirmation) || accountDeleting) return
+    setAccountDeleting(true)
+    try {
+      const res = await fetch('/api/account/delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ confirmation: deleteConfirmation }),
+      })
+      const data = await res.json().catch(() => null)
+      if (!res.ok) throw new Error(data?.error ?? 'Could not delete account')
+
+      const supabase = createClient()
+      await supabase.auth.signOut()
+      toast.success('Account permanently deleted')
+      window.location.replace('/')
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Could not delete account')
+    } finally {
+      setAccountDeleting(false)
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-5">
@@ -125,6 +153,57 @@ export function PrivacyClient() {
           {deleting ? 'Deleting...' : 'Delete All Data'}
         </Button>
       </div>
+
+      <div className="bg-red-950/40 border border-red-500/30 rounded-xl p-5">
+        <h2 className="text-lg font-semibold text-white mb-2">Delete account</h2>
+        <p className="text-sm text-red-100/80 mb-4">
+          Permanently delete your Breakup OS account, profile, dating profile, photos, social posts, message requests, matches, chats, credits, notifications, situations, AI history, reports, weekly summaries, and Supabase sign-in user. This cannot be undone.
+        </p>
+        <Button onClick={() => setShowDeleteAccount(true)} className="bg-red-600 hover:bg-red-700 text-white">
+          Delete account
+        </Button>
+      </div>
+
+      {showDeleteAccount && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+          <div className="w-full max-w-md rounded-xl border border-red-500/30 bg-zinc-950 p-5 shadow-2xl">
+            <h2 className="text-xl font-bold text-white">Delete account permanently?</h2>
+            <p className="mt-3 text-sm leading-relaxed text-zinc-300">
+              This deletes your account and all user-owned Breakup OS data, including dating/chat/social data and uploaded profile or social photos where storage paths are available. Abuse reports involving your account are currently deleted with the account in this beta; future production policy may retain limited safety records.
+            </p>
+            <p className="mt-4 text-sm font-semibold text-red-100">
+              Type DELETE to confirm.
+            </p>
+            <Input
+              value={deleteConfirmation}
+              onChange={event => setDeleteConfirmation(event.target.value)}
+              placeholder={DELETE_ACCOUNT_CONFIRMATION}
+              className="mt-2 bg-zinc-900 border-zinc-700 text-white"
+            />
+            <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  setShowDeleteAccount(false)
+                  setDeleteConfirmation('')
+                }}
+                className="border-zinc-700 text-zinc-300 hover:bg-zinc-800"
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                onClick={deleteAccount}
+                disabled={!hasValidDeleteAccountConfirmation(deleteConfirmation) || accountDeleting}
+                className="bg-red-600 text-white hover:bg-red-700 disabled:opacity-50"
+              >
+                {accountDeleting ? 'Deleting...' : 'Permanently delete account'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

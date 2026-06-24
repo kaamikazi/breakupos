@@ -1,5 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
+import { canAccessBetaApp, isBetaAccessEnabled } from '@/lib/beta'
+
+const BETA_PUBLIC_PREFIXES = [
+  '/',
+  '/auth',
+  '/api/beta',
+  '/api/og',
+  '/manifest.webmanifest',
+  '/safety',
+  '/privacy',
+]
+
+function isBetaGatePath(pathname: string) {
+  if (pathname === '/beta-access') return false
+  return !BETA_PUBLIC_PREFIXES.some(prefix => pathname === prefix || pathname.startsWith(`${prefix}/`))
+}
 
 export async function proxy(req: NextRequest) {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -27,7 +43,33 @@ export async function proxy(req: NextRequest) {
     },
   })
 
-  await supabase.auth.getUser()
+  const { data: { user } } = await supabase.auth.getUser()
+
+  if (user && isBetaAccessEnabled()) {
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('beta_approved_at')
+      .eq('id', user.id)
+      .maybeSingle()
+
+    const approved = canAccessBetaApp({ gateEnabled: true, profile })
+    const { pathname } = req.nextUrl
+
+    if (!approved && isBetaGatePath(pathname)) {
+      const url = req.nextUrl.clone()
+      url.pathname = '/beta-access'
+      url.search = ''
+      return NextResponse.redirect(url)
+    }
+
+    if (approved && pathname === '/beta-access') {
+      const url = req.nextUrl.clone()
+      url.pathname = '/dashboard'
+      url.search = ''
+      return NextResponse.redirect(url)
+    }
+  }
+
   return res
 }
 

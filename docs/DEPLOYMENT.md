@@ -17,7 +17,9 @@ Use `.env.example` as the source template for local setup.
 | `STRIPE_WEBHOOK_SECRET` | Billing | Required for webhook verification |
 | `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` | Billing | Required if client Stripe flows are added |
 | `NEXT_PUBLIC_STRIPE_PRO_PRICE_ID` | Billing | Recurring Pro price ID |
-| `BETA_ACCESS_ENABLED` | Beta | Set to `true` to require invite code before auth |
+| `BETA_GATE_ENABLED` | Beta | Preferred flag. Set to `true` to require account-level private beta approval after sign-in |
+| `NEXT_PUBLIC_BETA_GATE_ENABLED` | Beta | Optional public mirror for client copy; keep aligned with `BETA_GATE_ENABLED` |
+| `BETA_ACCESS_ENABLED` | Beta | Legacy flag still supported; prefer `BETA_GATE_ENABLED` |
 | `BETA_ACCESS_CODE` | Beta | Private beta invite code checked server-side |
 | `NEXT_PUBLIC_BETA_FEEDBACK_URL` | Beta | Optional public feedback form URL shown in the app nav |
 | `ADMIN_EMAILS` | Safety | Comma-separated admin emails allowed to access `/admin/reports` |
@@ -38,7 +40,8 @@ Use `.env.example` as the source template for local setup.
    - `supabase/social-profiles-message-requests.sql`
    - `supabase/credits-schema.sql`
    - `supabase/fix-auth-profile-trigger.sql`
-6. Important: a Vercel deploy does not update Supabase tables. If production errors with `column profiles_1.username does not exist`, `column profiles_1.avatar_url does not exist`, or public social names show auth/email-derived names, run `supabase/public-identity-fields.sql` and `supabase/public-social-profile-fields.sql` in the Supabase SQL editor, confirm they succeed, then redeploy or refresh the app.
+   - `supabase/beta-access-account-delete.sql`
+6. Important: a Vercel deploy does not update Supabase tables. If production errors with `column profiles_1.username does not exist`, `column profiles_1.avatar_url does not exist`, public social names show auth/email-derived names, or beta approval does not persist, run the relevant SQL migration in the Supabase SQL editor, confirm it succeeds, then redeploy or refresh the app.
 7. Confirm RLS is enabled on:
    - `profiles`
    - `situations`
@@ -95,10 +98,11 @@ Use `.env.example` as the source template for local setup.
 
 1. Back up production data.
 2. For tonight's social profile launch, run `supabase/public-identity-fields.sql` first. It adds `profiles.public_display_name`, `username`, `avatar_url`, `bio`, `public_profile_visible`, `social_vibe`, `public_location`, and `profile_completed_at`, then backfills safe public names/usernames and creates a unique `lower(username)` index.
-3. Run the full `supabase/schema.sql` for new environments, or the focused migrations listed above for existing environments.
-4. Confirm indexes were created.
-5. Confirm policies exist and do not duplicate.
-6. Smoke-test one user account before opening traffic.
+3. Run `supabase/beta-access-account-delete.sql` before enabling the private beta gate. It adds `profiles.beta_approved_at`, which stores permanent per-account beta approval.
+4. Run the full `supabase/schema.sql` for new environments, or the focused migrations listed above for existing environments.
+5. Confirm indexes were created.
+6. Confirm policies exist and do not duplicate.
+7. Smoke-test one user account before opening traffic.
 
 The schema is designed to be rerunnable: triggers and policies are dropped before recreation, columns use `ADD COLUMN IF NOT EXISTS`, and indexes use `CREATE INDEX IF NOT EXISTS`.
 

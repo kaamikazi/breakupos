@@ -39,12 +39,14 @@
 
 ## Auth / Beta Access
 
-- [ ] Set `BETA_ACCESS_ENABLED=true`.
-- [ ] Confirm `/auth` asks for beta code.
+- [ ] Run `supabase/beta-access-account-delete.sql`.
+- [ ] Set `BETA_GATE_ENABLED=true` and `BETA_ACCESS_CODE`.
+- [ ] Confirm `/auth` allows OAuth sign-in.
+- [ ] Confirm a new signed-in but unapproved account is redirected to `/beta-access`.
 - [ ] Confirm wrong code shows error.
-- [ ] Confirm correct code unlocks OAuth options.
-- [ ] Confirm existing authenticated user is not blocked.
-- [ ] Confirm `BETA_ACCESS_ENABLED=false` disables the gate.
+- [ ] Confirm correct code approves the account and redirects to `/dashboard`.
+- [ ] Confirm approved users never see `/beta-access` again.
+- [ ] Confirm `BETA_GATE_ENABLED=false` disables the gate.
 
 ## Core App Flow
 
@@ -78,6 +80,8 @@
 - [ ] Panic hide toggles names.
 - [ ] Local PIN lock works and can be cleared.
 - [ ] Export downloads JSON.
+- [ ] Delete account requires typing `DELETE`.
+- [ ] Delete account removes app data, profile/social storage objects, and the Supabase Auth user on a test account.
 - [ ] Delete all data requires confirmation and clears user data.
 - [ ] Screenshots are not uploaded or stored by default.
 

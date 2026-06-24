@@ -18,6 +18,7 @@ export interface Database {
           public_location: string | null
           profile_completed_at: string | null
           public_profile_visible: boolean
+          beta_approved_at: string | null
           plan: string
           situations_count: number
           situations_limit: number
@@ -41,6 +42,7 @@ export interface Database {
           public_location?: string | null
           profile_completed_at?: string | null
           public_profile_visible?: boolean
+          beta_approved_at?: string | null
           plan?: string
           situations_count?: number
           situations_limit?: number
@@ -64,6 +66,7 @@ export interface Database {
           public_location?: string | null
           profile_completed_at?: string | null
           public_profile_visible?: boolean
+          beta_approved_at?: string | null
           plan?: string
           situations_count?: number
           situations_limit?: number

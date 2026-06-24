@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { getAppUrl } from '@/lib/app-url'
+import { canAccessBetaApp, isBetaAccessEnabled } from '@/lib/beta'
+import { ensureProfileForUser } from '@/lib/quota'
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
@@ -28,6 +30,13 @@ export async function GET(req: NextRequest) {
     )
     const { error } = await supabase.auth.exchangeCodeForSession(code)
     if (!error) {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) {
+        const profile = await ensureProfileForUser(user)
+        if (!canAccessBetaApp({ gateEnabled: isBetaAccessEnabled(), profile })) {
+          response.headers.set('location', `${appUrl}/beta-access`)
+        }
+      }
       return response
     }
 
