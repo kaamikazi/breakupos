@@ -7,6 +7,8 @@ interface AuthUserProfileInput {
   user_metadata?: {
     full_name?: string
     name?: string
+    avatar_url?: string
+    picture?: string
     [key: string]: unknown
   }
 }
@@ -20,18 +22,23 @@ export function buildProfileDefaultsForUser(user: AuthUserProfileInput) {
   const baseUsername = fallbackUsername({ email, displayName, userId: user.id })
   const suffix = `-${user.id.slice(0, 6)}`
   const username = `${baseUsername.slice(0, USERNAME_MAX_LENGTH - suffix.length)}${suffix}`
+  const avatarUrl =
+    typeof user.user_metadata?.avatar_url === 'string' ? user.user_metadata.avatar_url :
+    typeof user.user_metadata?.picture === 'string' ? user.user_metadata.picture :
+    null
 
   return {
     email,
     displayName,
     publicDisplayName: displayName,
     username,
+    avatarUrl,
   }
 }
 
 export async function ensureProfileForUser(user: AuthUserProfileInput) {
   const supabase = createServiceClient()
-  const { email, displayName, publicDisplayName, username } = buildProfileDefaultsForUser(user)
+  const { email, displayName, publicDisplayName, username, avatarUrl } = buildProfileDefaultsForUser(user)
 
   const { data } = await supabase
     .from('profiles')
@@ -41,6 +48,8 @@ export async function ensureProfileForUser(user: AuthUserProfileInput) {
       display_name: displayName,
       public_display_name: publicDisplayName,
       username,
+      avatar_url: avatarUrl,
+      public_profile_visible: true,
       plan: 'free',
       situations_count: 0,
       situations_limit: 5,
@@ -52,12 +61,14 @@ export async function ensureProfileForUser(user: AuthUserProfileInput) {
 
   if (!data) return data
 
-  if (!data.public_display_name || !data.username) {
+  if (!data.public_display_name || !data.username || (!data.avatar_url && avatarUrl) || data.public_profile_visible === null) {
     const { data: updated } = await supabase
       .from('profiles')
       .update({
         public_display_name: data.public_display_name ?? displayName,
         username: data.username ?? username,
+        avatar_url: data.avatar_url ?? avatarUrl,
+        public_profile_visible: data.public_profile_visible ?? true,
       })
       .eq('id', user.id)
       .select('*')

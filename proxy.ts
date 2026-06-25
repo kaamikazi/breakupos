@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
+import { buildLoginRedirect, isPublicAppPath } from '@/lib/auth-flow'
 import { canAccessBetaApp, isBetaAccessEnabled } from '@/lib/beta'
 
 const BETA_PUBLIC_PREFIXES = [
   '/',
+  '/login',
   '/auth',
   '/api/beta',
   '/api/og',
@@ -44,6 +46,15 @@ export async function proxy(req: NextRequest) {
   })
 
   const { data: { user } } = await supabase.auth.getUser()
+  const { pathname, search } = req.nextUrl
+
+  if (!user && !isPublicAppPath(pathname)) {
+    const url = req.nextUrl.clone()
+    const redirectTo = buildLoginRedirect(pathname, search)
+    url.pathname = redirectTo.split('?')[0]
+    url.search = redirectTo.includes('?') ? `?${redirectTo.split('?')[1]}` : ''
+    return NextResponse.redirect(url)
+  }
 
   if (user && isBetaAccessEnabled()) {
     const { data: profile } = await supabase
@@ -53,8 +64,6 @@ export async function proxy(req: NextRequest) {
       .maybeSingle()
 
     const approved = canAccessBetaApp({ gateEnabled: true, profile })
-    const { pathname } = req.nextUrl
-
     if (!approved && isBetaGatePath(pathname)) {
       const url = req.nextUrl.clone()
       url.pathname = '/beta-access'

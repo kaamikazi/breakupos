@@ -1,9 +1,9 @@
 import { AuthEntryPage } from '@/components/Auth/AuthEntryPage'
 
-interface AuthPageProps {
+interface LoginPageProps {
   searchParams?: Promise<Record<string, string | string[] | undefined>>
 }
 
-export default function AuthPage(props: AuthPageProps) {
+export default function LoginPage(props: LoginPageProps) {
   return <AuthEntryPage {...props} />
 }

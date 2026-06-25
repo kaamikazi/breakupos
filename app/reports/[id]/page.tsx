@@ -6,7 +6,7 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
   const supabase = await createServerSupabaseClient()
   const { data: { user } } = await supabase.auth.getUser()
 
-  if (!user) redirect('/auth')
+  if (!user) redirect('/login')
 
   const { data: report } = await supabase
     .from('relationship_reports')

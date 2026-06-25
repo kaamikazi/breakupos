@@ -8,7 +8,7 @@ export default async function SocialRankingsPage() {
   const supabase = await createServerSupabaseClient()
   const { data: { user } } = await supabase.auth.getUser()
 
-  if (!user) redirect('/auth')
+  if (!user) redirect('/login')
 
   return (
     <main className="mx-auto max-w-6xl px-4 py-8">

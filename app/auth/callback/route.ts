@@ -1,14 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { getAppUrl } from '@/lib/app-url'
-import { canAccessBetaApp, isBetaAccessEnabled } from '@/lib/beta'
+import { getPostLoginRedirect, pathNeedsDatingProfile, sanitizeNextPath } from '@/lib/auth-flow'
+import { isBetaAccessEnabled, isBetaApproved } from '@/lib/beta'
 import { ensureProfileForUser } from '@/lib/quota'
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
   const appUrl = getAppUrl(req)
   const code = searchParams.get('code')
-  const next = searchParams.get('next') ?? '/dashboard'
+  const next = sanitizeNextPath(searchParams.get('next'))
 
   if (code) {
     const response = NextResponse.redirect(`${appUrl}${next}`)
@@ -33,21 +34,34 @@ export async function GET(req: NextRequest) {
       const { data: { user } } = await supabase.auth.getUser()
       if (user) {
         const profile = await ensureProfileForUser(user)
-        if (!canAccessBetaApp({ gateEnabled: isBetaAccessEnabled(), profile })) {
-          response.headers.set('location', `${appUrl}/beta-access`)
-        }
+        const { data: datingProfile } = pathNeedsDatingProfile(next)
+          ? await supabase
+            .from('dating_profiles')
+            .select('user_id,onboarding_completed')
+            .eq('user_id', user.id)
+            .maybeSingle()
+          : { data: null }
+        const redirectTo = getPostLoginRedirect({
+          requestedNext: next,
+          betaGateEnabled: isBetaAccessEnabled(),
+          betaApproved: isBetaApproved(profile),
+          needsProfileSetup: pathNeedsDatingProfile(next) && !datingProfile?.onboarding_completed,
+        })
+        response.headers.set('location', `${appUrl}${redirectTo}`)
       }
       return response
     }
 
-    const errorUrl = new URL('/auth', appUrl)
+    const errorUrl = new URL('/login', appUrl)
     errorUrl.searchParams.set('error', 'callback_error')
     errorUrl.searchParams.set('message', error.message)
+    errorUrl.searchParams.set('next', next)
     return NextResponse.redirect(errorUrl)
   }
 
-  const errorUrl = new URL('/auth', appUrl)
+  const errorUrl = new URL('/login', appUrl)
   errorUrl.searchParams.set('error', 'callback_error')
+  errorUrl.searchParams.set('next', next)
   errorUrl.searchParams.set(
     'message',
     searchParams.get('error_description') ??

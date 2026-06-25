@@ -126,9 +126,9 @@ export function Navbar({ profile }: NavbarProps) {
               </Button>
             </>
           ) : (
-            <Link href="/auth">
+            <Link href="/login">
               <Button size="sm" className="bg-pink-500 hover:bg-pink-600 text-white">
-                Get Started
+                Sign in
               </Button>
             </Link>
           )}

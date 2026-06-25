@@ -12,7 +12,7 @@ export default async function BetaAccessPage() {
 
   const supabase = await createServerSupabaseClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/auth')
+  if (!user) redirect('/login')
 
   const profile = await ensureProfileForUser(user)
   if (canAccessBetaApp({ gateEnabled: betaEnabled, profile })) redirect('/dashboard')

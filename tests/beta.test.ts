@@ -43,11 +43,13 @@ describe('beta access helpers', () => {
     const defaults = buildProfileDefaultsForUser({
       id: '12345678-aaaa-bbbb-cccc-123456789000',
       email: 'imran@example.com',
-      user_metadata: { full_name: 'Imran Ahmed' },
+      user_metadata: { full_name: 'Imran Ahmed', avatar_url: 'https://cdn.test/avatar.jpg' },
     })
 
     expect(defaults.displayName).toBe('Imran Ahmed')
     expect(defaults.publicDisplayName).toBe('Imran Ahmed')
     expect(defaults.username).toMatch(/^imran_ahmed-123456$/)
+    expect(defaults.avatarUrl).toBe('https://cdn.test/avatar.jpg')
+    expect(defaults.publicDisplayName).not.toBe('imran@example.com')
   })
 })

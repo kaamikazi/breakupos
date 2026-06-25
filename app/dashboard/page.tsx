@@ -11,7 +11,7 @@ export default async function DashboardPage() {
   const supabase = await createServerSupabaseClient()
   const { data: { user } } = await supabase.auth.getUser()
 
-  if (!user) redirect('/auth')
+  if (!user) redirect('/login')
 
   await ensureProfileForUser(user)
 

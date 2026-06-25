@@ -15,7 +15,7 @@ export default async function AnalyticsPage() {
   const supabase = await createServerSupabaseClient()
   const { data: { user } } = await supabase.auth.getUser()
 
-  if (!user) redirect('/auth')
+  if (!user) redirect('/login')
 
   const [{ data: situations }, { data: interactions }, { data: profile }] = await Promise.all([
     supabase.from('situations').select('*').eq('user_id', user.id),

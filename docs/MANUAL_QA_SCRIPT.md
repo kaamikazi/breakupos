@@ -2,6 +2,24 @@
 
 Use this script before inviting private beta users. Test with two normal users and one admin user. Run the test against the deployed beta environment, not only localhost.
 
+## Auth Entry Smoke Test
+
+1. Open the deployed beta URL while logged out.
+2. Click Start free beta.
+3. Confirm `/login` opens.
+4. Confirm the page shows the BreakupOS brand, "Welcome to Breakup OS", Privacy and Safety links, and a large Continue with Google button.
+5. Click Continue with Google.
+6. Confirm the button shows a redirecting/loading state and cannot be double-clicked repeatedly.
+7. Complete Google sign-in.
+8. If beta gate is disabled, confirm the user lands in the app.
+9. If beta gate is enabled, confirm `/beta-access` opens after Google sign-in and the correct password approves the account permanently.
+10. Open `/social` while logged out in a fresh browser profile.
+11. Confirm it redirects to `/login?next=/social`.
+12. Complete Google login and confirm the app returns to `/social` if beta and profile gates allow it.
+13. Open `/discover` while logged out.
+14. Confirm login preserves the destination, then sends users without completed dating profiles to onboarding.
+15. Confirm social/public profile surfaces do not show the user's email address.
+
 ## Test Data Rules
 
 - Use test emails only.

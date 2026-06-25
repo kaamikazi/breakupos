@@ -29,7 +29,7 @@ export default async function PublicProfilePage({ params }: PublicProfilePagePro
   const { username } = await params
   const supabase = await createServerSupabaseClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/auth')
+  if (!user) redirect('/login')
 
   const serviceClient = createServiceClient()
   const normalizedUsername = decodeURIComponent(username).trim().toLowerCase()

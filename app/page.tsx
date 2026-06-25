@@ -26,9 +26,9 @@ export default async function LandingPage() {
           Breakup OS helps you survive breakups, decode mixed signals, track no-contact, spot red flags, and date better with AI-assisted reflection, private tracking, and community verdicts.
         </p>
         <div className="flex flex-col justify-center gap-4 sm:flex-row">
-          <Link href="/auth">
+          <Link href="/login">
             <Button size="lg" className="h-12 bg-pink-500 px-8 text-base text-white hover:bg-pink-600">
-              {betaEnabled ? 'Join Beta' : 'Start Free'}
+              Start free beta
             </Button>
           </Link>
           <Link href="/analyzer">
@@ -134,9 +134,9 @@ export default async function LandingPage() {
       <section className="mx-auto max-w-3xl px-4 py-16 text-center">
         <h2 className="mb-4 text-3xl font-bold text-white">Ready to stop spiraling and start tracking?</h2>
         <p className="mb-8 text-zinc-400">Bring your beta code. Keep private tracking private. Let public posts stay photo-only.</p>
-        <Link href="/auth">
+        <Link href="/login">
           <Button size="lg" className="h-12 bg-pink-500 px-10 text-base text-white hover:bg-pink-600">
-            {betaEnabled ? 'Join Beta' : 'Get Started'}
+            Start free beta
           </Button>
         </Link>
       </section>

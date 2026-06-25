@@ -1,0 +1,48 @@
+export const LOGIN_PATH = '/login'
+export const DEFAULT_POST_LOGIN_PATH = '/dashboard'
+
+const PUBLIC_PATHS = [
+  '/',
+  LOGIN_PATH,
+  '/auth',
+  '/api',
+  '/manifest.webmanifest',
+  '/pricing',
+  '/privacy',
+  '/safety',
+]
+
+export function sanitizeNextPath(next: string | null | undefined) {
+  if (!next || !next.startsWith('/') || next.startsWith('//')) return DEFAULT_POST_LOGIN_PATH
+  if (next.startsWith('/login') || next.startsWith('/auth/login')) return DEFAULT_POST_LOGIN_PATH
+  return next
+}
+
+export function isPublicAppPath(pathname: string) {
+  return PUBLIC_PATHS.some(path => pathname === path || pathname.startsWith(`${path}/`))
+}
+
+export function buildLoginRedirect(pathname: string, search = '') {
+  const next = sanitizeNextPath(`${pathname}${search}`)
+  return `${LOGIN_PATH}?next=${encodeURIComponent(next)}`
+}
+
+export function getOAuthLoginPath(provider: 'google' | 'github', next?: string | null) {
+  return `/auth/login?provider=${provider}&next=${encodeURIComponent(sanitizeNextPath(next))}`
+}
+
+export function getPostLoginRedirect(input: {
+  requestedNext?: string | null
+  betaGateEnabled: boolean
+  betaApproved: boolean
+  needsProfileSetup?: boolean
+}) {
+  if (input.betaGateEnabled && !input.betaApproved) return '/beta-access'
+  if (input.needsProfileSetup) return '/dating/onboarding'
+  return sanitizeNextPath(input.requestedNext)
+}
+
+export function pathNeedsDatingProfile(pathname: string | null | undefined) {
+  const safePath = sanitizeNextPath(pathname)
+  return safePath === '/discover' || safePath.startsWith('/discover/') || safePath === '/matches' || safePath.startsWith('/matches/')
+}
