@@ -31,9 +31,14 @@ export default async function LandingPage() {
               Start free beta
             </Button>
           </Link>
-          <Link href="/analyzer">
+          <Link href="/login?next=/analyzer">
             <Button size="lg" variant="outline" className="h-12 border-zinc-700 px-8 text-base text-zinc-300 hover:bg-zinc-800">
               Try AI Analyzer
+            </Button>
+          </Link>
+          <Link href="/login?next=/social">
+            <Button size="lg" variant="outline" className="h-12 border-zinc-700 px-8 text-base text-zinc-300 hover:bg-zinc-800">
+              Social Feed
             </Button>
           </Link>
           <Link href="/pricing">

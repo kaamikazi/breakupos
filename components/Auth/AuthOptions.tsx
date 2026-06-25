@@ -61,7 +61,7 @@ export function AuthOptions({ nextPath }: AuthOptionsProps) {
         disabled={oauthDisabled}
         className="h-12 w-full bg-white text-base font-semibold text-zinc-950 hover:bg-zinc-100"
       >
-        {inAppBrowser ? 'Open in Chrome/Safari to use Google' : loading === 'google' ? 'Redirecting...' : 'Continue with Google'}
+        {inAppBrowser ? 'Open in Chrome/Safari to use Google' : loading === 'google' ? 'Opening Google...' : 'Continue with Google'}
       </Button>
       <Button
         onClick={() => signIn('github')}
@@ -69,7 +69,7 @@ export function AuthOptions({ nextPath }: AuthOptionsProps) {
         variant="outline"
         className="h-11 w-full border-zinc-700 bg-zinc-900 text-zinc-200 hover:bg-zinc-800"
       >
-        {inAppBrowser ? 'Open in Chrome/Safari to use GitHub' : loading === 'github' ? 'Redirecting...' : 'Continue with GitHub'}
+        {inAppBrowser ? 'Open in Chrome/Safari to use GitHub' : loading === 'github' ? 'Opening GitHub...' : 'Continue with GitHub'}
       </Button>
     </div>
   )

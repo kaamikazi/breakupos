@@ -74,6 +74,13 @@ export async function AuthEntryPage({ searchParams }: AuthEntryPageProps) {
         <div className="rounded-2xl border border-zinc-800 bg-zinc-900/80 p-4 shadow-2xl shadow-black/20 sm:p-5">
           <AuthOptions nextPath={next} />
 
+          <div className="mt-4 text-center text-sm text-zinc-400">
+            <span className="text-zinc-300">New here?</span> Start free beta with Google.
+            <div className="mt-1 text-xs text-zinc-500">
+              New users will create a free beta account automatically.
+            </div>
+          </div>
+
           <div className="mt-4 rounded-xl border border-emerald-500/20 bg-emerald-500/10 p-3 text-xs leading-relaxed text-emerald-100">
             Your private trackers, AI analysis, and relationship data stay private.
           </div>
