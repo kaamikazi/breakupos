@@ -17,6 +17,8 @@ export interface Database {
           public_vibe: string
           public_location: string | null
           profile_completed_at: string | null
+          onboarding_reasons: string[]
+          first_goal: string | null
           public_profile_visible: boolean
           beta_approved_at: string | null
           plan: string
@@ -41,6 +43,8 @@ export interface Database {
           public_vibe?: string
           public_location?: string | null
           profile_completed_at?: string | null
+          onboarding_reasons?: string[]
+          first_goal?: string | null
           public_profile_visible?: boolean
           beta_approved_at?: string | null
           plan?: string
@@ -65,6 +69,8 @@ export interface Database {
           public_vibe?: string
           public_location?: string | null
           profile_completed_at?: string | null
+          onboarding_reasons?: string[]
+          first_goal?: string | null
           public_profile_visible?: boolean
           beta_approved_at?: string | null
           plan?: string

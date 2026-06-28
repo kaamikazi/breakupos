@@ -3,6 +3,7 @@ import { BetaAccessForm } from '@/components/Auth/BetaAccessForm'
 import { SignOutButton } from '@/components/Auth/SignOutButton'
 import { InlineAlert } from '@/components/shared/InlineAlert'
 import { canAccessBetaApp, hasBetaPasswordConfigured, isBetaAccessEnabled } from '@/lib/beta'
+import { isProfileOnboarded } from '@/lib/onboarding'
 import { ensureProfileForUser } from '@/lib/quota'
 import { createServerSupabaseClient } from '@/lib/supabase-server'
 
@@ -15,7 +16,9 @@ export default async function BetaAccessPage() {
   if (!user) redirect('/login')
 
   const profile = await ensureProfileForUser(user)
-  if (canAccessBetaApp({ gateEnabled: betaEnabled, profile })) redirect('/dashboard')
+  if (canAccessBetaApp({ gateEnabled: betaEnabled, profile })) {
+    redirect(isProfileOnboarded(profile) ? '/dashboard' : '/onboarding')
+  }
 
   const passwordConfigured = hasBetaPasswordConfigured()
 

@@ -3,6 +3,7 @@ import { createServerClient } from '@supabase/ssr'
 import { getAppUrl } from '@/lib/app-url'
 import { getPostLoginRedirect, pathNeedsDatingProfile, sanitizeNextPath } from '@/lib/auth-flow'
 import { isBetaAccessEnabled, isBetaApproved } from '@/lib/beta'
+import { isProfileOnboarded } from '@/lib/onboarding'
 import { ensureProfileForUser } from '@/lib/quota'
 
 export async function GET(req: NextRequest) {
@@ -45,6 +46,7 @@ export async function GET(req: NextRequest) {
           requestedNext: next,
           betaGateEnabled: isBetaAccessEnabled(),
           betaApproved: isBetaApproved(profile),
+          needsOnboarding: !isProfileOnboarded(profile),
           needsProfileSetup: pathNeedsDatingProfile(next) && !datingProfile?.onboarding_completed,
         })
         response.headers.set('location', `${appUrl}${redirectTo}`)

@@ -53,6 +53,14 @@ describe('auth entry flow', () => {
       betaApproved: true,
       needsProfileSetup: true,
     })).toBe('/dating/onboarding')
+
+    expect(getPostLoginRedirect({
+      requestedNext: '/social',
+      betaGateEnabled: true,
+      betaApproved: true,
+      needsOnboarding: true,
+      needsProfileSetup: true,
+    })).toBe('/onboarding')
   })
 
   it('keeps login and landing copy wired to the launch flow', () => {

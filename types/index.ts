@@ -60,6 +60,8 @@ export interface Profile {
   public_vibe: 'healing' | 'dating' | 'no_contact' | 'figuring_it_out' | 'glow_up'
   public_location: string | null
   profile_completed_at: string | null
+  onboarding_reasons: string[]
+  first_goal: string | null
   public_profile_visible: boolean
   beta_approved_at: string | null
   plan: 'free' | 'pro'

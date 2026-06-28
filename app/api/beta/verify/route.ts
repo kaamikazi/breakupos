@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { BETA_ACCESS_COOKIE, hasBetaPasswordConfigured, hasValidBetaAccessCode, isBetaAccessEnabled } from '@/lib/beta'
 import { jsonError, parseJson } from '@/lib/api'
+import { isProfileOnboarded } from '@/lib/onboarding'
 import { createServerSupabaseClient, createServiceClient } from '@/lib/supabase-server'
 import { ensureProfileForUser } from '@/lib/quota'
 
@@ -28,8 +29,10 @@ export async function POST(req: NextRequest) {
   const supabase = await createServerSupabaseClient()
   const { data: { user } } = await supabase.auth.getUser()
 
+  let redirectTo = '/auth'
+
   if (user) {
-    await ensureProfileForUser(user)
+    const profile = await ensureProfileForUser(user)
     const serviceClient = createServiceClient()
     const { error } = await serviceClient
       .from('profiles')
@@ -37,9 +40,10 @@ export async function POST(req: NextRequest) {
       .eq('id', user.id)
 
     if (error) return jsonError('Could not approve beta access for this account.', 500)
+    redirectTo = isProfileOnboarded(profile) ? '/dashboard' : '/onboarding'
   }
 
-  const response = NextResponse.json({ success: true, redirectTo: user ? '/dashboard' : '/auth' })
+  const response = NextResponse.json({ success: true, redirectTo })
   response.cookies.set(BETA_ACCESS_COOKIE, 'granted', {
     httpOnly: true,
     sameSite: 'lax',

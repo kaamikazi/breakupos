@@ -4,6 +4,7 @@ import { AuthOptions } from '@/components/Auth/AuthOptions'
 import { InlineAlert } from '@/components/shared/InlineAlert'
 import { LOGIN_PATH, getPostLoginRedirect, pathNeedsDatingProfile, sanitizeNextPath } from '@/lib/auth-flow'
 import { canAccessBetaApp, isBetaAccessEnabled } from '@/lib/beta'
+import { isProfileOnboarded } from '@/lib/onboarding'
 import { createServerSupabaseClient } from '@/lib/supabase-server'
 
 interface AuthEntryPageProps {
@@ -30,7 +31,7 @@ export async function AuthEntryPage({ searchParams }: AuthEntryPageProps) {
   if (user) {
     const { data: profile } = await supabase
       .from('profiles')
-      .select('beta_approved_at')
+      .select('beta_approved_at,public_display_name,username,profile_completed_at')
       .eq('id', user.id)
       .maybeSingle()
 
@@ -46,6 +47,7 @@ export async function AuthEntryPage({ searchParams }: AuthEntryPageProps) {
       requestedNext: next,
       betaGateEnabled: betaEnabled,
       betaApproved: canAccessBetaApp({ gateEnabled: betaEnabled, profile }),
+      needsOnboarding: !isProfileOnboarded(profile),
       needsProfileSetup: pathNeedsDatingProfile(next) && !datingProfile?.onboarding_completed,
     }))
   }

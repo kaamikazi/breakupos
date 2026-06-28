@@ -4,6 +4,7 @@ export const DEFAULT_POST_LOGIN_PATH = '/dashboard'
 const PUBLIC_PATHS = [
   '/',
   LOGIN_PATH,
+  '/onboarding',
   '/auth',
   '/api',
   '/manifest.webmanifest',
@@ -35,9 +36,11 @@ export function getPostLoginRedirect(input: {
   requestedNext?: string | null
   betaGateEnabled: boolean
   betaApproved: boolean
+  needsOnboarding?: boolean
   needsProfileSetup?: boolean
 }) {
   if (input.betaGateEnabled && !input.betaApproved) return '/beta-access'
+  if (input.needsOnboarding) return '/onboarding'
   if (input.needsProfileSetup) return '/dating/onboarding'
   return sanitizeNextPath(input.requestedNext)
 }

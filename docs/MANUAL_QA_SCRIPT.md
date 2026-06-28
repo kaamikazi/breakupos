@@ -11,14 +11,22 @@ Use this script before inviting private beta users. Test with two normal users a
 5. Click Continue with Google.
 6. Confirm the button shows a redirecting/loading state and cannot be double-clicked repeatedly.
 7. Complete Google sign-in.
-8. If beta gate is disabled, confirm the user lands in the app.
-9. If beta gate is enabled, confirm `/beta-access` opens after Google sign-in and the correct password approves the account permanently.
-10. Open `/social` while logged out in a fresh browser profile.
-11. Confirm it redirects to `/login?next=/social`.
-12. Complete Google login and confirm the app returns to `/social` if beta and profile gates allow it.
-13. Open `/discover` while logged out.
-14. Confirm login preserves the destination, then sends users without completed dating profiles to onboarding.
-15. Confirm social/public profile surfaces do not show the user's email address.
+8. If beta gate is enabled, confirm `/beta-access` opens after Google sign-in and the correct password approves the account permanently.
+9. Confirm a brand-new user is sent to `/onboarding` before protected app pages.
+10. Complete first-run onboarding:
+   - Enter a public display name that is not an email address.
+   - Confirm the username suggestion is editable.
+   - Try a taken or invalid username if available and confirm the error is clear.
+   - Choose at least one reason for using BreakupOS.
+   - Choose the first action.
+   - Confirm the app redirects to the chosen destination.
+11. Confirm returning to `/login` after completion sends the user into the app, not back to onboarding.
+12. Open `/social` while logged out in a fresh browser profile.
+13. Confirm it redirects to `/login?next=/social`.
+14. Complete Google login and confirm the app returns to `/social` once beta and first-run profile gates allow it.
+15. Open `/discover` while logged out.
+16. Confirm login preserves the destination, then sends users without completed dating profiles to dating onboarding.
+17. Confirm social/public profile surfaces do not show the user's email address.
 
 ## Test Data Rules
 
@@ -44,9 +52,10 @@ Make sure the admin email is included in `ADMIN_EMAILS`.
 2. If beta access is enabled, enter the beta access code.
 3. Sign up as Account A.
 4. Confirm the auth redirect returns to the app.
-5. Navigate to Discover.
-6. Confirm incomplete dating users are redirected to `/dating/onboarding`.
-7. Complete dating onboarding:
+5. Complete first-run BreakupOS onboarding if this is a new account.
+6. Navigate to Discover.
+7. Confirm incomplete dating users are redirected to `/dating/onboarding`.
+8. Complete dating onboarding:
    - Enter display name or nickname.
    - Enter age.
    - Add bio.

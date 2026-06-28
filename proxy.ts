@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { buildLoginRedirect, isPublicAppPath } from '@/lib/auth-flow'
 import { canAccessBetaApp, isBetaAccessEnabled } from '@/lib/beta'
+import { isProfileOnboarded } from '@/lib/onboarding'
 
 const BETA_PUBLIC_PREFIXES = [
   '/',
@@ -56,15 +57,18 @@ export async function proxy(req: NextRequest) {
     return NextResponse.redirect(url)
   }
 
-  if (user && isBetaAccessEnabled()) {
+  if (user) {
     const { data: profile } = await supabase
       .from('profiles')
-      .select('beta_approved_at')
+      .select('beta_approved_at,public_display_name,username,profile_completed_at')
       .eq('id', user.id)
       .maybeSingle()
 
-    const approved = canAccessBetaApp({ gateEnabled: true, profile })
-    if (!approved && isBetaGatePath(pathname)) {
+    const betaEnabled = isBetaAccessEnabled()
+    const approved = canAccessBetaApp({ gateEnabled: betaEnabled, profile })
+    const onboarded = isProfileOnboarded(profile)
+
+    if (betaEnabled && !approved && isBetaGatePath(pathname)) {
       const url = req.nextUrl.clone()
       url.pathname = '/beta-access'
       url.search = ''
@@ -73,7 +77,21 @@ export async function proxy(req: NextRequest) {
 
     if (approved && pathname === '/beta-access') {
       const url = req.nextUrl.clone()
-      url.pathname = '/dashboard'
+      url.pathname = onboarded ? '/dashboard' : '/onboarding'
+      url.search = ''
+      return NextResponse.redirect(url)
+    }
+
+    if (approved && !onboarded && !isPublicAppPath(pathname)) {
+      const url = req.nextUrl.clone()
+      url.pathname = '/onboarding'
+      url.search = ''
+      return NextResponse.redirect(url)
+    }
+
+    if (approved && onboarded && pathname === '/onboarding') {
+      const url = req.nextUrl.clone()
+      url.pathname = '/social'
       url.search = ''
       return NextResponse.redirect(url)
     }

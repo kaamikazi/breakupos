@@ -41,7 +41,8 @@ Use `.env.example` as the source template for local setup.
    - `supabase/credits-schema.sql`
    - `supabase/fix-auth-profile-trigger.sql`
    - `supabase/beta-access-account-delete.sql`
-6. Important: a Vercel deploy does not update Supabase tables. If production errors with `column profiles_1.username does not exist`, `column profiles_1.avatar_url does not exist`, public social names show auth/email-derived names, or beta approval does not persist, run the relevant SQL migration in the Supabase SQL editor, confirm it succeeds, then redeploy or refresh the app.
+   - `supabase/profile-onboarding.sql`
+6. Important: a Vercel deploy does not update Supabase tables. If production errors with `column profiles_1.username does not exist`, `column profiles_1.avatar_url does not exist`, public social names show auth/email-derived names, beta approval does not persist, or first-run onboarding cannot save preferences, run the relevant SQL migration in the Supabase SQL editor, confirm it succeeds, then redeploy or refresh the app.
 7. Confirm RLS is enabled on:
    - `profiles`
    - `situations`
@@ -111,10 +112,11 @@ Use `.env.example` as the source template for local setup.
 1. Back up production data.
 2. For tonight's social profile launch, run `supabase/public-identity-fields.sql` first. It adds `profiles.public_display_name`, `username`, `avatar_url`, `bio`, `public_profile_visible`, `social_vibe`, `public_location`, and `profile_completed_at`, then backfills safe public names/usernames and creates a unique `lower(username)` index.
 3. Run `supabase/beta-access-account-delete.sql` before enabling the private beta gate. It adds `profiles.beta_approved_at`, which stores permanent per-account beta approval.
-4. Run the full `supabase/schema.sql` for new environments, or the focused migrations listed above for existing environments.
-5. Confirm indexes were created.
-6. Confirm policies exist and do not duplicate.
-7. Smoke-test one user account before opening traffic.
+4. Run `supabase/profile-onboarding.sql` before deploying the required first-run setup flow. It adds `profiles.onboarding_reasons`, `profiles.first_goal`, and the `profile_completed_at` support used to decide whether a signed-in user can enter protected app pages.
+5. Run the full `supabase/schema.sql` for new environments, or the focused migrations listed above for existing environments.
+6. Confirm indexes were created.
+7. Confirm policies exist and do not duplicate.
+8. Smoke-test one user account before opening traffic.
 
 The schema is designed to be rerunnable: triggers and policies are dropped before recreation, columns use `ADD COLUMN IF NOT EXISTS`, and indexes use `CREATE INDEX IF NOT EXISTS`.
 

@@ -15,6 +15,7 @@ BreakupOS Dating is ready for controlled private beta testing, not broad public 
 What works:
 
 - Private beta access gate
+- Required first-run public identity setup before protected app features
 - Dating onboarding and profile editing
 - Supabase Storage profile photo uploads
 - Discovery, like/pass, daily like limits, and matches
@@ -52,6 +53,7 @@ Before inviting testers:
 BreakupOS helps users turn messy romantic uncertainty into structured data:
 
 - Track people through a relationship pipeline
+- Create a public social identity without exposing email or private tracker data
 - Log interactions, sentiment, flags, and notes
 - Run no-contact recovery mode for exes
 - Ask an AI advisor for grounded next steps
