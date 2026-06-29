@@ -110,7 +110,9 @@ export function ProfileOnboardingClient({ profile }: { profile: InitialProfile }
 
     const body = await response.json().catch(() => null)
     if (!response.ok) {
-      setError(typeof body?.error === 'string' ? body.error : 'Could not finish onboarding.')
+      const message = typeof body?.error === 'string' ? body.error : 'Could not save onboarding. Please try again.'
+      if (/username/i.test(message)) setStep(1)
+      setError(message)
       return
     }
 

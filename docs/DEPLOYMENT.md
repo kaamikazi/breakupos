@@ -43,7 +43,8 @@ Use `.env.example` as the source template for local setup.
    - `supabase/beta-access-account-delete.sql`
    - `supabase/profile-onboarding.sql`
 6. Important: a Vercel deploy does not update Supabase tables. If production errors with `column profiles_1.username does not exist`, `column profiles_1.avatar_url does not exist`, public social names show auth/email-derived names, beta approval does not persist, or first-run onboarding cannot save preferences, run the relevant SQL migration in the Supabase SQL editor, confirm it succeeds, then redeploy or refresh the app.
-7. Confirm RLS is enabled on:
+7. Before testing required first-run onboarding in production, run `supabase/profile-onboarding.sql`. It is intentionally self-contained and adds `public_display_name`, `username`, `bio`, `avatar_url`, `onboarding_reasons`, `first_goal`, `profile_completed_at`, `public_profile_visible`, the unique lowercase username index, and the own-profile update RLS policy.
+8. Confirm RLS is enabled on:
    - `profiles`
    - `situations`
    - `interactions`
@@ -64,7 +65,7 @@ Use `.env.example` as the source template for local setup.
    - `user_credits`
    - `credit_transactions`
    - `ai_usage_events`
-7. In Supabase Realtime, enable realtime events for `dating_messages` if chat should update without polling. The app falls back to manual refresh/polling behavior if the channel is unavailable.
+9. In Supabase Realtime, enable realtime events for `dating_messages` if chat should update without polling. The app falls back to manual refresh/polling behavior if the channel is unavailable.
 
 ## Account Deletion Smoke Test
 
@@ -112,7 +113,7 @@ Use `.env.example` as the source template for local setup.
 1. Back up production data.
 2. For tonight's social profile launch, run `supabase/public-identity-fields.sql` first. It adds `profiles.public_display_name`, `username`, `avatar_url`, `bio`, `public_profile_visible`, `social_vibe`, `public_location`, and `profile_completed_at`, then backfills safe public names/usernames and creates a unique `lower(username)` index.
 3. Run `supabase/beta-access-account-delete.sql` before enabling the private beta gate. It adds `profiles.beta_approved_at`, which stores permanent per-account beta approval.
-4. Run `supabase/profile-onboarding.sql` before deploying the required first-run setup flow. It adds `profiles.onboarding_reasons`, `profiles.first_goal`, and the `profile_completed_at` support used to decide whether a signed-in user can enter protected app pages.
+4. Run `supabase/profile-onboarding.sql` before deploying or testing the required first-run setup flow. It adds all profile fields used by onboarding, creates `profiles_username_lower_unique`, and recreates the safe `Users can update own profile` RLS policy.
 5. Run the full `supabase/schema.sql` for new environments, or the focused migrations listed above for existing environments.
 6. Confirm indexes were created.
 7. Confirm policies exist and do not duplicate.

@@ -5,6 +5,7 @@ import {
   buildLoginRedirect,
   getOAuthLoginPath,
   getPostLoginRedirect,
+  getProtectedRouteRedirect,
   isPublicAppPath,
   pathNeedsDatingProfile,
   sanitizeNextPath,
@@ -80,5 +81,62 @@ describe('auth entry flow', () => {
     expect(landing).toContain('Start free beta')
     expect(authEntry).not.toContain('signInWithOAuth')
     expect(oauthRoute).toContain('signInWithOAuth')
+  })
+
+  it('keeps onboarding guard from redirecting to itself', () => {
+    expect(getProtectedRouteRedirect({
+      pathname: '/social',
+      search: '',
+      authenticated: false,
+      betaGateEnabled: false,
+      betaApproved: false,
+      onboarded: false,
+    })).toBe('/login?next=%2Fsocial')
+
+    expect(getProtectedRouteRedirect({
+      pathname: '/social',
+      search: '?tab=latest',
+      authenticated: true,
+      betaGateEnabled: false,
+      betaApproved: true,
+      onboarded: false,
+    })).toBe('/onboarding?next=%2Fsocial%3Ftab%3Dlatest')
+
+    expect(getProtectedRouteRedirect({
+      pathname: '/onboarding',
+      authenticated: true,
+      betaGateEnabled: false,
+      betaApproved: true,
+      onboarded: false,
+    })).toBeNull()
+
+    expect(getProtectedRouteRedirect({
+      pathname: '/onboarding',
+      search: '?next=%2Fsocial',
+      authenticated: true,
+      betaGateEnabled: false,
+      betaApproved: true,
+      onboarded: true,
+    })).toBe('/social')
+
+    expect(getProtectedRouteRedirect({
+      pathname: '/onboarding',
+      search: '?next=%2Fonboarding',
+      authenticated: true,
+      betaGateEnabled: false,
+      betaApproved: false,
+      onboarded: true,
+    })).toBe('/social')
+  })
+
+  it('does not block auth callback with beta or onboarding guards', () => {
+    expect(getProtectedRouteRedirect({
+      pathname: '/auth/callback',
+      search: '?code=abc',
+      authenticated: true,
+      betaGateEnabled: true,
+      betaApproved: false,
+      onboarded: false,
+    })).toBeNull()
   })
 })

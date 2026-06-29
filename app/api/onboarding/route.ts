@@ -1,12 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { jsonError, parseJson } from '@/lib/api'
-import { canUseUsername, getFirstGoalRedirect, profileOnboardingSchema } from '@/lib/onboarding'
+import { logServerError } from '@/lib/logging'
+import {
+  buildProfileOnboardingUpdate,
+  canUseUsername,
+  getFirstGoalRedirect,
+  getOnboardingSaveError,
+  profileOnboardingSchema,
+} from '@/lib/onboarding'
+import { ensureProfileForUser } from '@/lib/quota'
 import { createServerSupabaseClient, createServiceClient } from '@/lib/supabase-server'
 
 export async function POST(req: NextRequest) {
   const supabase = await createServerSupabaseClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return jsonError('Unauthorized', 401)
+  await ensureProfileForUser(user)
 
   const parsed = await parseJson(req, profileOnboardingSchema)
   if (parsed.error) return parsed.error
@@ -21,28 +30,37 @@ export async function POST(req: NextRequest) {
     .neq('id', user.id)
     .maybeSingle()
 
-  if (usernameError) return jsonError('Could not check username availability.', 500)
-  if (!canUseUsername(usernameOwner?.id, user.id)) return jsonError('That username is taken. Try another one.', 409)
+  if (usernameError) {
+    logServerError('Onboarding username availability check failed', {
+      route: '/api/onboarding',
+      operation: 'check_username',
+      userId: user.id,
+      code: usernameError.code,
+      errorMessage: usernameError.message,
+    })
+    const friendly = getOnboardingSaveError(usernameError)
+    return jsonError(friendly.message, friendly.status)
+  }
+  if (!canUseUsername(usernameOwner?.id, user.id)) return jsonError('Username is already taken', 409)
 
   const now = new Date().toISOString()
-  const { error } = await serviceClient
+  const { error } = await supabase
     .from('profiles')
-    .update({
-      public_display_name: parsed.data.public_display_name,
-      display_name: parsed.data.public_display_name,
-      username,
-      avatar_url: parsed.data.avatar_url || null,
-      bio: parsed.data.bio ?? '',
-      onboarding_reasons: parsed.data.onboarding_reasons,
-      first_goal: parsed.data.first_goal,
-      public_profile_visible: true,
-      profile_completed_at: now,
-    })
+    .update(buildProfileOnboardingUpdate(parsed.data, now))
     .eq('id', user.id)
+    .select('id,profile_completed_at')
+    .single()
 
   if (error) {
-    if (error.code === '23505') return jsonError('That username is taken. Try another one.', 409)
-    return jsonError('Could not save onboarding. Please try again.', 500)
+    logServerError('Onboarding profile update failed', {
+      route: '/api/onboarding',
+      operation: 'update_profile',
+      userId: user.id,
+      code: error.code,
+      errorMessage: error.message,
+    })
+    const friendly = getOnboardingSaveError(error)
+    return jsonError(friendly.message, friendly.status)
   }
 
   return NextResponse.json({

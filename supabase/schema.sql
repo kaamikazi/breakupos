@@ -461,7 +461,7 @@ CREATE POLICY "Users can view own profile" ON profiles FOR SELECT USING (auth.ui
 DROP POLICY IF EXISTS "Users can view public profiles" ON profiles;
 CREATE POLICY "Users can view public profiles" ON profiles FOR SELECT USING (public_profile_visible = TRUE);
 DROP POLICY IF EXISTS "Users can update own profile" ON profiles;
-CREATE POLICY "Users can update own profile" ON profiles FOR UPDATE USING (auth.uid() = id);
+CREATE POLICY "Users can update own profile" ON profiles FOR UPDATE USING (auth.uid() = id) WITH CHECK (auth.uid() = id);
 
 -- Situations: users can only CRUD their own
 DROP POLICY IF EXISTS "Users can view own situations" ON situations;
@@ -623,6 +623,7 @@ CREATE POLICY "Users can view own ai usage events" ON ai_usage_events FOR SELECT
 -- Query indexes for dashboard, detail pages, analytics, and Stripe lookups.
 CREATE INDEX IF NOT EXISTS idx_profiles_stripe_customer_id ON profiles(stripe_customer_id);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_profiles_username_lower_unique ON profiles(lower(username)) WHERE username IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS profiles_username_lower_unique ON profiles(lower(username)) WHERE username IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_situations_user_updated ON situations(user_id, updated_at DESC);
 CREATE INDEX IF NOT EXISTS idx_situations_user_stage ON situations(user_id, stage);
 CREATE INDEX IF NOT EXISTS idx_situations_user_breakup ON situations(user_id, is_breakup_mode) WHERE is_breakup_mode = TRUE;

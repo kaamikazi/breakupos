@@ -1,12 +1,18 @@
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import {
+  buildProfileOnboardingUpdate,
   canUseUsername,
   getFirstGoalRedirect,
+  getOnboardingSaveError,
   isProfileOnboarded,
   profileOnboardingSchema,
   suggestOnboardingUsername,
 } from '@/lib/onboarding'
 import { getPublicDisplayName } from '@/lib/social-profile'
+
+const repoRoot = process.cwd()
 
 describe('first-time profile onboarding', () => {
   it('requires a public name, username, reason, and first action', () => {
@@ -80,5 +86,72 @@ describe('first-time profile onboarding', () => {
       username: null,
       display_name: null,
     })).toBe('Breakup OS User')
+  })
+
+  it('builds the profile update with completion timestamp and consistent field names', () => {
+    const completedAt = '2026-06-29T00:00:00.000Z'
+    const parsed = profileOnboardingSchema.parse({
+      public_display_name: ' kamikaze ',
+      username: 'kamikaze',
+      avatar_url: '',
+      bio: ' here to decode the chaos ',
+      onboarding_reasons: ['ghosted', 'red_flags'],
+      first_goal: 'decode_message',
+    })
+
+    expect(buildProfileOnboardingUpdate(parsed, completedAt)).toEqual({
+      public_display_name: 'kamikaze',
+      display_name: 'kamikaze',
+      username: 'kamikaze',
+      avatar_url: null,
+      bio: 'here to decode the chaos',
+      onboarding_reasons: ['ghosted', 'red_flags'],
+      first_goal: 'decode_message',
+      public_profile_visible: true,
+      profile_completed_at: completedAt,
+    })
+  })
+
+  it('returns launch-useful onboarding save errors', () => {
+    expect(getOnboardingSaveError({ code: '23505', message: 'duplicate key value violates unique constraint' })).toEqual({
+      status: 409,
+      message: 'Username is already taken',
+    })
+    expect(getOnboardingSaveError({ code: '42703', message: 'column "onboarding_reasons" does not exist' }).message).toContain('migration')
+    expect(getOnboardingSaveError({ code: '42501', message: 'violates row-level security policy' }).status).toBe(403)
+  })
+
+  it('ships a self-contained migration for profile fields, uniqueness, and own-profile RLS', () => {
+    const migration = readFileSync(join(repoRoot, 'supabase/profile-onboarding.sql'), 'utf8')
+
+    expect(migration).toContain('ADD COLUMN IF NOT EXISTS public_display_name TEXT')
+    expect(migration).toContain('ADD COLUMN IF NOT EXISTS username TEXT')
+    expect(migration).toContain("ADD COLUMN IF NOT EXISTS onboarding_reasons TEXT[] DEFAULT '{}'")
+    expect(migration).toContain('ADD COLUMN IF NOT EXISTS first_goal TEXT')
+    expect(migration).toContain('ADD COLUMN IF NOT EXISTS profile_completed_at TIMESTAMPTZ')
+    expect(migration).toContain('DROP CONSTRAINT IF EXISTS profiles_username_format_check')
+    expect(migration).toContain('DROP INDEX IF EXISTS public.idx_profiles_username_lower_unique')
+    expect(migration).toContain('CREATE UNIQUE INDEX IF NOT EXISTS profiles_username_lower_unique')
+    expect(migration).toContain("CHECK (username IS NULL OR username ~ '^[a-z0-9_-]{3,20}$')")
+    expect(migration).toContain('USING (auth.uid() = id)')
+    expect(migration).toContain('WITH CHECK (auth.uid() = id)')
+  })
+
+  it('renders profile-load fallback instead of redirecting signed-in users back to login', () => {
+    const page = readFileSync(join(repoRoot, 'app/onboarding/page.tsx'), 'utf8')
+    const loading = readFileSync(join(repoRoot, 'app/onboarding/loading.tsx'), 'utf8')
+
+    expect(page).toContain('Could not load your profile.')
+    expect(page).toContain('<ProfileLoadError />')
+    expect(page).not.toContain("if (!profile) redirect('/login?next=/onboarding')")
+    expect(loading).toContain('Loading Breakup OS...')
+  })
+
+  it('does not run client navigation in an effect loop', () => {
+    const client = readFileSync(join(repoRoot, 'components/Onboarding/ProfileOnboardingClient.tsx'), 'utf8')
+
+    expect(client).not.toContain('useEffect')
+    expect(client).not.toContain('router.replace')
+    expect(client.match(/router\.push/g)?.length ?? 0).toBe(1)
   })
 })

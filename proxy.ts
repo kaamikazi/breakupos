@@ -1,24 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
-import { buildLoginRedirect, isPublicAppPath } from '@/lib/auth-flow'
+import { getProtectedRouteRedirect } from '@/lib/auth-flow'
 import { canAccessBetaApp, isBetaAccessEnabled } from '@/lib/beta'
 import { isProfileOnboarded } from '@/lib/onboarding'
-
-const BETA_PUBLIC_PREFIXES = [
-  '/',
-  '/login',
-  '/auth',
-  '/api/beta',
-  '/api/og',
-  '/manifest.webmanifest',
-  '/safety',
-  '/privacy',
-]
-
-function isBetaGatePath(pathname: string) {
-  if (pathname === '/beta-access') return false
-  return !BETA_PUBLIC_PREFIXES.some(prefix => pathname === prefix || pathname.startsWith(`${prefix}/`))
-}
 
 export async function proxy(req: NextRequest) {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -49,14 +33,8 @@ export async function proxy(req: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
   const { pathname, search } = req.nextUrl
 
-  if (!user && !isPublicAppPath(pathname)) {
-    const url = req.nextUrl.clone()
-    const redirectTo = buildLoginRedirect(pathname, search)
-    url.pathname = redirectTo.split('?')[0]
-    url.search = redirectTo.includes('?') ? `?${redirectTo.split('?')[1]}` : ''
-    return NextResponse.redirect(url)
-  }
-
+  let betaApproved = false
+  let onboarded = false
   if (user) {
     const { data: profile } = await supabase
       .from('profiles')
@@ -65,36 +43,25 @@ export async function proxy(req: NextRequest) {
       .maybeSingle()
 
     const betaEnabled = isBetaAccessEnabled()
-    const approved = canAccessBetaApp({ gateEnabled: betaEnabled, profile })
-    const onboarded = isProfileOnboarded(profile)
+    betaApproved = canAccessBetaApp({ gateEnabled: betaEnabled, profile })
+    onboarded = isProfileOnboarded(profile)
+  }
 
-    if (betaEnabled && !approved && isBetaGatePath(pathname)) {
-      const url = req.nextUrl.clone()
-      url.pathname = '/beta-access'
-      url.search = ''
-      return NextResponse.redirect(url)
-    }
+  const redirectTo = getProtectedRouteRedirect({
+    pathname,
+    search,
+    authenticated: Boolean(user),
+    betaGateEnabled: isBetaAccessEnabled(),
+    betaApproved,
+    onboarded,
+  })
 
-    if (approved && pathname === '/beta-access') {
-      const url = req.nextUrl.clone()
-      url.pathname = onboarded ? '/dashboard' : '/onboarding'
-      url.search = ''
-      return NextResponse.redirect(url)
-    }
-
-    if (approved && !onboarded && !isPublicAppPath(pathname)) {
-      const url = req.nextUrl.clone()
-      url.pathname = '/onboarding'
-      url.search = ''
-      return NextResponse.redirect(url)
-    }
-
-    if (approved && onboarded && pathname === '/onboarding') {
-      const url = req.nextUrl.clone()
-      url.pathname = '/social'
-      url.search = ''
-      return NextResponse.redirect(url)
-    }
+  if (redirectTo) {
+    const url = req.nextUrl.clone()
+    const [path, query = ''] = redirectTo.split('?')
+    url.pathname = path
+    url.search = query ? `?${query}` : ''
+    return NextResponse.redirect(url)
   }
 
   return res

@@ -59,6 +59,18 @@ export const profileOnboardingSchema = z.object({
 
 export type ProfileOnboardingInput = z.infer<typeof profileOnboardingSchema>
 
+export type ProfileOnboardingUpdate = {
+  public_display_name: string
+  display_name: string
+  username: string
+  avatar_url: string | null
+  bio: string
+  onboarding_reasons: OnboardingReason[]
+  first_goal: FirstGoal
+  public_profile_visible: boolean
+  profile_completed_at: string
+}
+
 export function isProfileOnboarded(profile: {
   public_display_name?: string | null
   username?: string | null
@@ -89,6 +101,41 @@ export function suggestOnboardingUsername(input: {
 
 export function canUseUsername(usernameOwnerId: string | null | undefined, currentUserId: string) {
   return !usernameOwnerId || usernameOwnerId === currentUserId
+}
+
+export function buildProfileOnboardingUpdate(input: ProfileOnboardingInput, completedAt: string): ProfileOnboardingUpdate {
+  const username = input.username.trim().toLowerCase()
+  const publicName = input.public_display_name.trim()
+
+  return {
+    public_display_name: publicName,
+    display_name: publicName,
+    username,
+    avatar_url: input.avatar_url?.trim() || null,
+    bio: input.bio?.trim() ?? '',
+    onboarding_reasons: input.onboarding_reasons,
+    first_goal: input.first_goal,
+    public_profile_visible: true,
+    profile_completed_at: completedAt,
+  }
+}
+
+export function getOnboardingSaveError(error: { code?: string | null; message?: string | null } | null | undefined) {
+  const message = error?.message ?? ''
+
+  if (error?.code === '23505' || /duplicate key|unique/i.test(message)) {
+    return { status: 409, message: 'Username is already taken' }
+  }
+
+  if (error?.code === '42703' || /column .* does not exist/i.test(message)) {
+    return { status: 500, message: 'Onboarding database fields are missing. Ask the admin to run the profile onboarding migration.' }
+  }
+
+  if (error?.code === '42501' || /row-level security|permission denied|violates row-level security/i.test(message)) {
+    return { status: 403, message: 'Could not save onboarding because profile permissions are not configured yet.' }
+  }
+
+  return { status: 500, message: 'Could not save onboarding. Please try again.' }
 }
 
 export function getFirstGoalRedirect(goal: FirstGoal) {
