@@ -8,7 +8,10 @@ export default async function AdminReportsPage() {
   const { data: { user } } = await supabase.auth.getUser()
 
   if (!user) redirect('/login')
-  if (!isAdminEmail(user.email)) redirect('/dashboard')
+  if (!isAdminEmail(user.email, undefined, {
+    emailConfirmedAt: user.email_confirmed_at,
+    emailVerified: user.user_metadata?.email_verified,
+  })) redirect('/dashboard')
 
   const serviceClient = createServiceClient()
   const { data: reports } = await serviceClient

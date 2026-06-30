@@ -64,6 +64,34 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
+CREATE OR REPLACE FUNCTION public.refund_user_credits(
+  p_user_id UUID,
+  p_amount INT,
+  p_reason TEXT,
+  p_reference_id UUID DEFAULT NULL
+)
+RETURNS BOOLEAN AS $$
+BEGIN
+  IF p_amount <= 0 THEN
+    RAISE EXCEPTION 'Credit refund amount must be positive';
+  END IF;
+
+  UPDATE public.user_credits
+  SET balance = balance + p_amount
+  WHERE user_id = p_user_id;
+
+  IF NOT FOUND THEN
+    INSERT INTO public.user_credits (user_id, balance)
+    VALUES (p_user_id, p_amount);
+  END IF;
+
+  INSERT INTO public.credit_transactions (user_id, amount, reason, reference_id)
+  VALUES (p_user_id, p_amount, p_reason, p_reference_id);
+
+  RETURN TRUE;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+
 ALTER TABLE public.user_credits ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.credit_transactions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.ai_usage_events ENABLE ROW LEVEL SECURITY;

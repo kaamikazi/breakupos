@@ -23,6 +23,7 @@ Use `.env.example` as the source template for local setup.
 | `BETA_ACCESS_CODE` | Beta | Private beta invite code checked server-side |
 | `NEXT_PUBLIC_BETA_FEEDBACK_URL` | Beta | Optional public feedback form URL shown in the app nav |
 | `ADMIN_EMAILS` | Safety | Comma-separated admin emails allowed to access `/admin/reports` |
+| `CRON_SECRET` | Scheduled jobs | Required. `/api/cron/reset-quotas` fails closed without it; Vercel Cron must send `Authorization: Bearer <CRON_SECRET>`. |
 
 ## Supabase Setup
 
@@ -42,9 +43,11 @@ Use `.env.example` as the source template for local setup.
    - `supabase/fix-auth-profile-trigger.sql`
    - `supabase/beta-access-account-delete.sql`
    - `supabase/profile-onboarding.sql`
+   - `supabase/security-hardening-beta.sql`
 6. Important: a Vercel deploy does not update Supabase tables. If production errors with `column profiles_1.username does not exist`, `column profiles_1.avatar_url does not exist`, public social names show auth/email-derived names, beta approval does not persist, or first-run onboarding cannot save preferences, run the relevant SQL migration in the Supabase SQL editor, confirm it succeeds, then redeploy or refresh the app.
 7. Before testing required first-run onboarding in production, run `supabase/profile-onboarding.sql`. It is intentionally self-contained and adds `public_display_name`, `username`, `bio`, `avatar_url`, `onboarding_reasons`, `first_goal`, `profile_completed_at`, `public_profile_visible`, the unique lowercase username index, and the own-profile update RLS policy.
-8. Confirm RLS is enabled on:
+8. Before public beta traffic, run `supabase/security-hardening-beta.sql`. It locks down direct `message_requests` inserts with RLS, requires signed-in users for public profile/dating/photo reads, adds safer update `WITH CHECK` policies, and creates `refund_user_credits` for AI-credit rollback.
+9. Confirm RLS is enabled on:
    - `profiles`
    - `situations`
    - `interactions`
@@ -65,7 +68,7 @@ Use `.env.example` as the source template for local setup.
    - `user_credits`
    - `credit_transactions`
    - `ai_usage_events`
-9. In Supabase Realtime, enable realtime events for `dating_messages` if chat should update without polling. The app falls back to manual refresh/polling behavior if the channel is unavailable.
+10. In Supabase Realtime, enable realtime events for `dating_messages` if chat should update without polling. The app falls back to manual refresh/polling behavior if the channel is unavailable.
 
 ## Account Deletion Smoke Test
 
@@ -92,7 +95,7 @@ Use `.env.example` as the source template for local setup.
 
 ## Credits / Cost Protection
 
-1. Run `supabase/credits-schema.sql` if the full schema has not already created `user_credits`, `credit_transactions`, `ai_usage_events`, and `spend_user_credits`.
+1. Run `supabase/credits-schema.sql` if the full schema has not already created `user_credits`, `credit_transactions`, `ai_usage_events`, `spend_user_credits`, and `refund_user_credits`.
 2. New users receive a starter wallet of 10 credits.
 3. Expensive AI actions should check free quota, Pro status, or credits before calling the AI provider.
 4. Failed AI calls should record failed usage events and should not spend credits.
@@ -114,6 +117,7 @@ Use `.env.example` as the source template for local setup.
 2. For tonight's social profile launch, run `supabase/public-identity-fields.sql` first. It adds `profiles.public_display_name`, `username`, `avatar_url`, `bio`, `public_profile_visible`, `social_vibe`, `public_location`, and `profile_completed_at`, then backfills safe public names/usernames and creates a unique `lower(username)` index.
 3. Run `supabase/beta-access-account-delete.sql` before enabling the private beta gate. It adds `profiles.beta_approved_at`, which stores permanent per-account beta approval.
 4. Run `supabase/profile-onboarding.sql` before deploying or testing the required first-run setup flow. It adds all profile fields used by onboarding, creates `profiles_username_lower_unique`, and recreates the safe `Users can update own profile` RLS policy.
+5. Run `supabase/security-hardening-beta.sql` before launch. Vercel deploy alone will not apply the message request RLS policies, direct-Supabase protections, or AI credit refund RPC.
 5. Run the full `supabase/schema.sql` for new environments, or the focused migrations listed above for existing environments.
 6. Confirm indexes were created.
 7. Confirm policies exist and do not duplicate.

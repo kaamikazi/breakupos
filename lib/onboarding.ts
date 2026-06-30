@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { normalizeUsername } from '@/lib/social-profile'
+import { isSafePublicHttpsUrl } from '@/lib/dating'
 
 export const ONBOARDING_REASONS = [
   'breakup_recovery',
@@ -51,7 +52,9 @@ export const onboardingUsernameSchema = z
 export const profileOnboardingSchema = z.object({
   public_display_name: z.string().trim().min(1, 'Public name is required.').max(60),
   username: onboardingUsernameSchema,
-  avatar_url: z.string().trim().url().max(500).optional().or(z.literal('')),
+  avatar_url: z.string().trim().url().max(500).refine(isSafePublicHttpsUrl, {
+    message: 'Avatar URL must be a public https image URL.',
+  }).optional().or(z.literal('')),
   bio: z.string().trim().max(300).optional().default(''),
   onboarding_reasons: z.array(z.enum(ONBOARDING_REASONS)).min(1, 'Choose at least one reason.').max(4),
   first_goal: z.enum(FIRST_GOALS),

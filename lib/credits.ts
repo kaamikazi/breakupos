@@ -69,6 +69,31 @@ export async function spendCredits(input: {
   return { ok: data === true, error: data === true ? null : 'Insufficient credits', amount }
 }
 
+export async function refundCredits(input: {
+  userId: string
+  action: CreditAction
+  amount?: number
+  referenceId?: string | null
+}) {
+  const amount = input.amount ?? getCreditCost(input.action)
+  const supabase = createServiceClient() as unknown as {
+    rpc: (
+      fn: 'refund_user_credits',
+      args: { p_user_id: string; p_amount: number; p_reason: string; p_reference_id?: string | null }
+    ) => Promise<{ data: boolean | null; error: { message: string } | null }>
+  }
+
+  const { data, error } = await supabase.rpc('refund_user_credits', {
+    p_user_id: input.userId,
+    p_amount: amount,
+    p_reason: `${input.action}_refund`,
+    p_reference_id: input.referenceId ?? null,
+  })
+
+  if (error) return { ok: false, error: error.message, amount }
+  return { ok: data === true, error: data === true ? null : 'Refund failed', amount }
+}
+
 export async function recordAIUsageEvent(input: {
   userId: string
   action: CreditAction

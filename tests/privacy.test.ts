@@ -7,7 +7,7 @@ import {
   shouldContinueAfterStorageCleanupError,
   canDeleteOnlyCurrentUser,
 } from '@/lib/account-delete'
-import { collectStoragePaths, deleteAccountSchema, deleteAllSchema, getDeleteAccountCoverageSummary, hasValidDeleteAccountConfirmation } from '@/lib/privacy'
+import { collectStoragePaths, deleteAccountSchema, deleteAllSchema, getDeleteAccountCoverageSummary, getDeleteAllCoverageSummary, hasValidDeleteAccountConfirmation } from '@/lib/privacy'
 
 describe('privacy destructive confirmation', () => {
   it('requires exact delete confirmation', () => {
@@ -37,6 +37,17 @@ describe('privacy destructive confirmation', () => {
       'message requests',
       'profile photo and social post storage objects',
     ]))
+  })
+
+  it('documents delete-all coverage without deleting the auth account', () => {
+    expect(getDeleteAllCoverageSummary()).toEqual(expect.arrayContaining([
+      'social posts and reactions',
+      'message requests',
+      'dating messages and matches',
+      'profile photo and social post storage objects',
+      'profile counters reset while keeping the account',
+    ]))
+    expect(getDeleteAllCoverageSummary()).not.toContain('Supabase Auth user')
   })
 
   it('requires service role config before account deletion can run', () => {

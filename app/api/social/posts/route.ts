@@ -2,15 +2,17 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient, createServiceClient } from '@/lib/supabase-server'
 import { getClientIp, jsonError, rateLimit } from '@/lib/api'
 import { ensureProfileForUser } from '@/lib/quota'
-import { getPublicDisplayName, publicProfilePath } from '@/lib/social-profile'
 import {
   SOCIAL_FEED_PAGE_SIZE,
   SOCIAL_POST_BUCKET,
-  computeCommunityVerdict,
+  buildSafeSocialFeedPayload,
   createSocialPostSchema,
   socialFeedQuerySchema,
-  validateSocialPhotoFile,
+  validateUploadedImageFile,
+  type SocialPostRow,
+  type SocialReactionRow,
 } from '@/lib/social'
+import { logServerError } from '@/lib/logging'
 
 export async function GET(req: NextRequest) {
   const supabase = await createServerSupabaseClient()
@@ -28,7 +30,7 @@ export async function GET(req: NextRequest) {
   const serviceClient = createServiceClient()
   let query = serviceClient
     .from('social_posts')
-    .select('id,user_id,image_url,section,created_at,profiles(id,public_display_name,display_name,username,avatar_url)')
+    .select('id,user_id,image_url,section,created_at,profiles(id,public_display_name,display_name,username,avatar_url,public_profile_visible)')
     .eq('is_deleted', false)
     .order('created_at', { ascending: false })
     .limit(SOCIAL_FEED_PAGE_SIZE)
@@ -40,7 +42,7 @@ export async function GET(req: NextRequest) {
   if (error && /public_display_name|username|avatar_url/i.test(error.message)) {
     const profileFallbackQuery = serviceClient
       .from('social_posts')
-      .select('id,user_id,image_url,section,created_at,profiles(id,display_name,username,avatar_url)')
+      .select('id,user_id,image_url,section,created_at,profiles(id,display_name,username,avatar_url,public_profile_visible)')
       .eq('is_deleted', false)
       .order('created_at', { ascending: false })
       .limit(SOCIAL_FEED_PAGE_SIZE)
@@ -56,7 +58,7 @@ export async function GET(req: NextRequest) {
   if (error && /public_display_name|username|avatar_url/i.test(error.message)) {
     const minimalFallbackQuery = serviceClient
       .from('social_posts')
-      .select('id,user_id,image_url,section,created_at,profiles(id,display_name)')
+      .select('id,user_id,image_url,section,created_at,profiles(id,display_name,public_profile_visible)')
       .eq('is_deleted', false)
       .order('created_at', { ascending: false })
       .limit(SOCIAL_FEED_PAGE_SIZE)
@@ -69,38 +71,36 @@ export async function GET(req: NextRequest) {
     posts = fallback.data as typeof posts
     error = fallback.error
   }
-  if (error) return jsonError(error.message, 500)
+  if (error) {
+    logServerError('Social feed query failed', {
+      route: 'social/posts',
+      operation: 'list_posts',
+      code: error.code ?? 'unknown',
+      errorMessage: error.message,
+    })
+    return jsonError('Could not load social posts right now.', 500)
+  }
 
   const postIds = (posts ?? []).map(post => post.id)
-  let reactions: { post_id: string; user_id: string; reaction_type: string }[] = []
+  let reactions: SocialReactionRow[] = []
   if (postIds.length > 0) {
     const { data: reactionRows, error: reactionsError } = await serviceClient
       .from('social_post_reactions')
       .select('post_id,user_id,reaction_type')
       .in('post_id', postIds)
-    if (reactionsError) return jsonError(reactionsError.message, 500)
+    if (reactionsError) {
+      logServerError('Social feed reactions query failed', {
+        route: 'social/posts',
+        operation: 'list_reactions',
+        code: reactionsError.code ?? 'unknown',
+        errorMessage: reactionsError.message,
+      })
+      return jsonError('Could not load social reactions right now.', 500)
+    }
     reactions = reactionRows ?? []
   }
 
-  const payload = (posts ?? []).map(post => {
-    const postReactions = reactions.filter(reaction => reaction.post_id === post.id)
-    const loveCount = postReactions.filter(reaction => reaction.reaction_type === 'love').length
-    const redFlagCount = postReactions.filter(reaction => reaction.reaction_type === 'red_flag').length
-    const mine = postReactions.find(reaction => reaction.user_id === user.id)
-    const { profiles, ...rest } = post as typeof post & { profiles: { id: string; public_display_name?: string | null; display_name: string | null; username?: string | null; avatar_url?: string | null } | null }
-    return {
-      ...rest,
-      display_name: profiles ? getPublicDisplayName(profiles) : 'Breakup OS User',
-      username: profiles?.username ?? null,
-      avatar_url: profiles?.avatar_url ?? null,
-      profile_path: profiles ? publicProfilePath(profiles) : null,
-      is_owner: post.user_id === user.id,
-      love_count: loveCount,
-      red_flag_count: redFlagCount,
-      my_reaction: mine?.reaction_type ?? null,
-      verdict: computeCommunityVerdict(loveCount, redFlagCount),
-    }
-  })
+  const payload = buildSafeSocialFeedPayload((posts ?? []) as SocialPostRow[], reactions, user.id)
 
   return NextResponse.json({
     posts: payload,
@@ -123,7 +123,7 @@ export async function POST(req: NextRequest) {
   if (!formData) return jsonError('Send the photo and section as multipart form data.', 400)
 
   const file = formData.get('file')
-  const validation = validateSocialPhotoFile(file instanceof File ? file : null)
+  const validation = await validateUploadedImageFile(file instanceof File ? file : null)
   if (!validation.valid || !(file instanceof File)) {
     return jsonError(validation.error ?? 'A photo is required. Posts are photo-only.', 400)
   }
@@ -138,7 +138,16 @@ export async function POST(req: NextRequest) {
   const { error: uploadError } = await serviceClient.storage
     .from(SOCIAL_POST_BUCKET)
     .upload(storagePath, file, { contentType: file.type, upsert: false })
-  if (uploadError) return jsonError(uploadError.message, 500)
+  if (uploadError) {
+    logServerError('Social post upload failed', {
+      route: 'social/posts',
+      operation: 'upload_photo',
+      code: 'storage_upload_failed',
+      errorMessage: uploadError.message,
+      userId: user.id,
+    })
+    return jsonError('Could not upload the photo right now.', 500)
+  }
 
   const { data: publicUrl } = serviceClient.storage.from(SOCIAL_POST_BUCKET).getPublicUrl(storagePath)
   const { data, error } = await serviceClient
@@ -154,7 +163,14 @@ export async function POST(req: NextRequest) {
 
   if (error) {
     await serviceClient.storage.from(SOCIAL_POST_BUCKET).remove([storagePath])
-    return jsonError(error.message, 500)
+    logServerError('Social post insert failed', {
+      route: 'social/posts',
+      operation: 'insert_post',
+      code: error.code ?? 'unknown',
+      errorMessage: error.message,
+      userId: user.id,
+    })
+    return jsonError('Could not create the post right now.', 500)
   }
 
   return NextResponse.json(data, { status: 201 })

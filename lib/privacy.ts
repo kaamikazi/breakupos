@@ -33,3 +33,16 @@ export function getDeleteAccountCoverageSummary() {
     'Supabase Auth user',
   ]
 }
+
+export function getDeleteAllCoverageSummary() {
+  return [
+    'social posts and reactions',
+    'message requests',
+    'dating messages and matches',
+    'profile photos and dating profile',
+    'blocks, reports, and notifications',
+    'situations, interactions, AI advice, reports, and weekly summaries',
+    'profile photo and social post storage objects',
+    'profile counters reset while keeping the account',
+  ]
+}

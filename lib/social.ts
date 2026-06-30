@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { getPublicDisplayName, publicProfilePath } from '@/lib/social-profile'
 
 // --- Social feed domain: photo-only posts, Love vs Red Flag verdicts ---
 
@@ -60,6 +61,88 @@ export function validateSocialPhotoFile(file: Pick<File, 'type' | 'size'> | null
     return { valid: false, error: 'Post photos must be 5MB or smaller.' }
   }
   if (file.size === 0) return { valid: false, error: 'That image file is empty.' }
+  return { valid: true, error: null }
+}
+
+export type SocialPostProfile = {
+  id: string
+  public_display_name?: string | null
+  display_name?: string | null
+  username?: string | null
+  avatar_url?: string | null
+  public_profile_visible?: boolean | null
+}
+
+export type SocialPostRow = {
+  id: string
+  user_id: string
+  image_url: string
+  section: SocialSection
+  created_at: string
+  profiles: SocialPostProfile | null
+}
+
+export type SocialReactionRow = {
+  post_id: string
+  user_id: string
+  reaction_type: string
+}
+
+export function buildSafeSocialFeedPayload(
+  posts: SocialPostRow[],
+  reactions: SocialReactionRow[],
+  viewerId: string
+) {
+  return posts
+    .filter(post => post.profiles?.public_profile_visible === true)
+    .map(post => {
+      const postReactions = reactions.filter(reaction => reaction.post_id === post.id)
+      const loveCount = postReactions.filter(reaction => reaction.reaction_type === 'love').length
+      const redFlagCount = postReactions.filter(reaction => reaction.reaction_type === 'red_flag').length
+      const mine = postReactions.find(reaction => reaction.user_id === viewerId)
+      const profile = post.profiles
+
+      return {
+        id: post.id,
+        image_url: post.image_url,
+        section: post.section,
+        created_at: post.created_at,
+        display_name: profile ? getPublicDisplayName(profile) : 'Breakup OS User',
+        username: profile?.username ?? null,
+        avatar_url: profile?.avatar_url ?? null,
+        profile_path: profile ? publicProfilePath(profile) : null,
+        is_owner: post.user_id === viewerId,
+        love_count: loveCount,
+        red_flag_count: redFlagCount,
+        my_reaction: mine?.reaction_type ?? null,
+        verdict: computeCommunityVerdict(loveCount, redFlagCount),
+      }
+    })
+}
+
+export function hasValidImageSignature(type: string, bytes: Uint8Array) {
+  if (type === 'image/jpeg') return bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff
+  if (type === 'image/png') {
+    return bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47 &&
+      bytes[4] === 0x0d && bytes[5] === 0x0a && bytes[6] === 0x1a && bytes[7] === 0x0a
+  }
+  if (type === 'image/webp') {
+    const riff = String.fromCharCode(...bytes.slice(0, 4))
+    const webp = String.fromCharCode(...bytes.slice(8, 12))
+    return riff === 'RIFF' && webp === 'WEBP'
+  }
+  return false
+}
+
+export async function validateUploadedImageFile(file: File | null | undefined) {
+  const basic = validateSocialPhotoFile(file)
+  if (!basic.valid || !file) return basic
+
+  const header = new Uint8Array(await file.slice(0, 16).arrayBuffer())
+  if (!hasValidImageSignature(file.type, header)) {
+    return { valid: false, error: 'Upload a valid JPG, PNG, or WebP image.' }
+  }
+
   return { valid: true, error: null }
 }
 

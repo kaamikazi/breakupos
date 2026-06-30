@@ -3,7 +3,7 @@ import { createServerSupabaseClient } from '@/lib/supabase-server'
 import { anthropic, extractText, SAFETY_DISCLAIMER } from '@/lib/anthropic'
 import { getClientIp, jsonError, parseJson, rateLimit } from '@/lib/api'
 import { analysisSchema, analyzerInputSchema, fallbackAnalysis } from '@/lib/message-analysis'
-import { canAffordCredits, getCreditBalance, getCreditCost, recordAIUsageEvent, spendCredits } from '@/lib/credits'
+import { canAffordCredits, getCreditBalance, getCreditCost, recordAIUsageEvent, refundCredits, spendCredits } from '@/lib/credits'
 
 export async function POST(req: NextRequest) {
   const supabase = await createServerSupabaseClient()
@@ -36,6 +36,17 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(fallbackAnalysis(parsed.data.message_text))
   }
 
+  let reservedCredits = 0
+  let providerResponded = false
+  if (shouldChargeCredits) {
+    const charge = await spendCredits({ userId: user.id, action: 'message_analysis' })
+    if (!charge.ok) {
+      await recordAIUsageEvent({ userId: user.id, action: 'message_analysis', status: 'blocked' })
+      return jsonError(`Message analysis costs ${getCreditCost('message_analysis')} credits.`, 402)
+    }
+    reservedCredits = charge.amount
+  }
+
   try {
     await recordAIUsageEvent({ userId: user.id, action: 'message_analysis', status: 'started' })
     const message = await anthropic.messages.create({
@@ -48,23 +59,50 @@ export async function POST(req: NextRequest) {
       }],
     })
     const text = extractText(message) || '{}'
+    providerResponded = true
     const jsonStart = text.indexOf('{')
     const jsonEnd = text.lastIndexOf('}')
     if (jsonStart === -1 || jsonEnd === -1 || jsonEnd < jsonStart) {
+      await recordAIUsageEvent({
+        userId: user.id,
+        action: 'message_analysis',
+        status: 'succeeded',
+        creditsCharged: shouldChargeCredits ? reservedCredits : 0,
+      })
       return NextResponse.json(fallbackAnalysis(parsed.data.message_text))
     }
-    const json = JSON.parse(text.slice(jsonStart, jsonEnd + 1))
+    let json: unknown
+    try {
+      json = JSON.parse(text.slice(jsonStart, jsonEnd + 1))
+    } catch {
+      await recordAIUsageEvent({
+        userId: user.id,
+        action: 'message_analysis',
+        status: 'succeeded',
+        creditsCharged: shouldChargeCredits ? reservedCredits : 0,
+      })
+      return NextResponse.json(fallbackAnalysis(parsed.data.message_text))
+    }
     const validated = analysisSchema.safeParse(json)
-    if (!validated.success) return NextResponse.json(fallbackAnalysis(parsed.data.message_text))
+    if (!validated.success) {
+      await recordAIUsageEvent({
+        userId: user.id,
+        action: 'message_analysis',
+        status: 'succeeded',
+        creditsCharged: shouldChargeCredits ? reservedCredits : 0,
+      })
+      return NextResponse.json(fallbackAnalysis(parsed.data.message_text))
+    }
     if (shouldChargeCredits) {
-      const charge = await spendCredits({ userId: user.id, action: 'message_analysis' })
-      if (!charge.ok) return jsonError('Analysis completed, but credits could not be charged. Please try again.', 409)
-      await recordAIUsageEvent({ userId: user.id, action: 'message_analysis', status: 'succeeded', creditsCharged: charge.amount })
+      await recordAIUsageEvent({ userId: user.id, action: 'message_analysis', status: 'succeeded', creditsCharged: reservedCredits })
     } else {
       await recordAIUsageEvent({ userId: user.id, action: 'message_analysis', status: 'succeeded' })
     }
     return NextResponse.json(validated.data)
   } catch {
+    if (shouldChargeCredits && reservedCredits > 0 && !providerResponded) {
+      await refundCredits({ userId: user.id, action: 'message_analysis', amount: reservedCredits })
+    }
     await recordAIUsageEvent({ userId: user.id, action: 'message_analysis', status: 'failed' })
     return NextResponse.json(fallbackAnalysis(parsed.data.message_text))
   }

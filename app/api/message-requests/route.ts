@@ -3,6 +3,7 @@ import { createServerSupabaseClient, createServiceClient } from '@/lib/supabase-
 import { getClientIp, jsonError, parseJson, rateLimit } from '@/lib/api'
 import { buildNotification } from '@/lib/notifications'
 import { canSendMessageRequest, messageRequestSchema } from '@/lib/social-profile'
+import { logServerError } from '@/lib/logging'
 
 export async function POST(req: NextRequest) {
   const supabase = await createServerSupabaseClient()
@@ -70,7 +71,16 @@ export async function POST(req: NextRequest) {
     .select('id')
     .single()
 
-  if (error) return jsonError(error.message, 500)
+  if (error) {
+    logServerError('Message request insert failed', {
+      route: 'message-requests',
+      operation: 'insert_request',
+      code: error.code ?? 'unknown',
+      errorMessage: error.message,
+      userId: user.id,
+    })
+    return jsonError('Could not send the message request right now.', 500)
+  }
 
   await serviceClient.from('notifications').insert(buildNotification({
     user_id: receiverId,

@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { hasValidImageSignature } from '@/lib/social'
 
 export const DATING_FIELD_LIMITS = {
   displayName: 80,
@@ -175,9 +176,22 @@ export function validateProfilePhotoFile(file: Pick<File, 'type' | 'size'>) {
   if (!PROFILE_PHOTO_TYPES.includes(file.type as (typeof PROFILE_PHOTO_TYPES)[number])) {
     return { valid: false, error: 'Use a JPG, PNG, or WebP image.' }
   }
+  if (file.size === 0) return { valid: false, error: 'That image file is empty.' }
   if (file.size > PROFILE_PHOTO_MAX_SIZE) {
     return { valid: false, error: 'Profile photos must be 5MB or smaller.' }
   }
+  return { valid: true, error: null }
+}
+
+export async function validateUploadedProfilePhotoFile(file: File) {
+  const basic = validateProfilePhotoFile(file)
+  if (!basic.valid) return basic
+
+  const header = new Uint8Array(await file.slice(0, 16).arrayBuffer())
+  if (!hasValidImageSignature(file.type, header)) {
+    return { valid: false, error: 'Upload a valid JPG, PNG, or WebP image.' }
+  }
+
   return { valid: true, error: null }
 }
 

@@ -95,6 +95,11 @@ export function getDeletedMessageDisplay(message: Pick<MessageLike, 'body' | 'de
   return message.deleted_at ? 'Message deleted' : message.body
 }
 
+export function maskDeletedMessageBody<T extends { body: string | null; deleted_at?: string | null }>(message: T): T {
+  if (!message.deleted_at) return message
+  return { ...message, body: 'Message deleted' }
+}
+
 export function isLowEffortSpam(body: string) {
   const cleaned = body.trim().toLowerCase()
   if (cleaned.length < 2) return true

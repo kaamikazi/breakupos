@@ -6,12 +6,19 @@ const PUBLIC_PATHS = [
   LOGIN_PATH,
   '/onboarding',
   '/auth',
-  '/api',
+  '/api/beta',
+  '/api/og',
+  '/api/webhooks/stripe',
+  '/api/cron/reset-quotas',
   '/manifest.webmanifest',
   '/pricing',
   '/privacy',
   '/safety',
 ]
+
+export function isApiPath(pathname: string) {
+  return pathname === '/api' || pathname.startsWith('/api/')
+}
 
 export function sanitizeNextPath(next: string | null | undefined) {
   if (!next || !next.startsWith('/') || next.startsWith('//')) return DEFAULT_POST_LOGIN_PATH
@@ -73,6 +80,10 @@ export function getProtectedRouteRedirect(input: {
 }) {
   const search = input.search ?? ''
   const canEnterApp = !input.betaGateEnabled || input.betaApproved
+
+  // API routes return JSON auth errors from the route handler itself. Avoid
+  // middleware redirects that would turn an API 401 into a login HTML response.
+  if (isApiPath(input.pathname)) return null
 
   if (!input.authenticated && !isPublicAppPath(input.pathname)) {
     return buildLoginRedirect(input.pathname, search)

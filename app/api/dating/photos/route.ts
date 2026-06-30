@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createServerSupabaseClient, createServiceClient } from '@/lib/supabase-server'
-import { PROFILE_PHOTO_BUCKET, PROFILE_PHOTO_MAX_COUNT, validateProfilePhotoFile } from '@/lib/dating'
+import { PROFILE_PHOTO_BUCKET, PROFILE_PHOTO_MAX_COUNT, validateUploadedProfilePhotoFile } from '@/lib/dating'
 import { getClientIp, jsonError, rateLimit } from '@/lib/api'
+import { logServerError } from '@/lib/logging'
 
 const reorderSchema = z.object({
   photo_ids: z.array(z.string().uuid()).min(1).max(PROFILE_PHOTO_MAX_COUNT),
@@ -21,7 +22,7 @@ export async function POST(req: NextRequest) {
   const file = formData.get('file')
   if (!(file instanceof File)) return jsonError('Photo file required.', 400)
 
-  const validation = validateProfilePhotoFile(file)
+  const validation = await validateUploadedProfilePhotoFile(file)
   if (!validation.valid) return jsonError(validation.error ?? 'Invalid photo.', 400)
 
   const serviceClient = createServiceClient()
@@ -40,7 +41,16 @@ export async function POST(req: NextRequest) {
     .from(PROFILE_PHOTO_BUCKET)
     .upload(storagePath, file, { contentType: file.type, upsert: false })
 
-  if (uploadError) return jsonError(uploadError.message, 500)
+  if (uploadError) {
+    logServerError('Dating photo upload failed', {
+      route: 'dating/photos',
+      operation: 'upload_photo',
+      code: 'storage_upload_failed',
+      errorMessage: uploadError.message,
+      userId: user.id,
+    })
+    return jsonError('Could not upload the photo right now.', 500)
+  }
 
   const { data: publicUrl } = serviceClient.storage.from(PROFILE_PHOTO_BUCKET).getPublicUrl(storagePath)
   const position = count ?? 0
@@ -61,7 +71,14 @@ export async function POST(req: NextRequest) {
 
   if (error) {
     await serviceClient.storage.from(PROFILE_PHOTO_BUCKET).remove([storagePath])
-    return jsonError(error.message, 500)
+    logServerError('Dating photo insert failed', {
+      route: 'dating/photos',
+      operation: 'insert_photo',
+      code: error.code ?? 'unknown',
+      errorMessage: error.message,
+      userId: user.id,
+    })
+    return jsonError('Could not save the photo right now.', 500)
   }
 
   return NextResponse.json(data, { status: 201 })
@@ -92,7 +109,16 @@ export async function PATCH(req: NextRequest) {
       .update({ position, is_primary: position === 0 })
       .eq('id', id)
       .eq('user_id', user.id)
-    if (error) return jsonError(error.message, 500)
+    if (error) {
+      logServerError('Dating photo reorder failed', {
+        route: 'dating/photos',
+        operation: 'reorder_photo',
+        code: error.code ?? 'unknown',
+        errorMessage: error.message,
+        userId: user.id,
+      })
+      return jsonError('Could not reorder photos right now.', 500)
+    }
   }
 
   const { data, error } = await serviceClient
@@ -101,6 +127,15 @@ export async function PATCH(req: NextRequest) {
     .eq('user_id', user.id)
     .order('position')
 
-  if (error) return jsonError(error.message, 500)
+  if (error) {
+    logServerError('Dating photo list failed', {
+      route: 'dating/photos',
+      operation: 'list_photos',
+      code: error.code ?? 'unknown',
+      errorMessage: error.message,
+      userId: user.id,
+    })
+    return jsonError('Could not load photos right now.', 500)
+  }
   return NextResponse.json(data)
 }

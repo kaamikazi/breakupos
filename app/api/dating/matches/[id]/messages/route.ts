@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient, createServiceClient } from '@/lib/supabase-server'
-import { chatMessageSchema, chatPaginationSchema, canSendMessage, getMessageSpamVerdict, getOtherParticipantId, isMatchParticipant } from '@/lib/dating-chat'
+import { chatMessageSchema, chatPaginationSchema, canSendMessage, getMessageSpamVerdict, getOtherParticipantId, isMatchParticipant, maskDeletedMessageBody } from '@/lib/dating-chat'
 import { getClientIp, jsonError, parseJson, rateLimit } from '@/lib/api'
 import { buildNotification } from '@/lib/notifications'
+import { logServerError } from '@/lib/logging'
 
 interface MessagesRouteProps {
   params: Promise<{ id: string }>
@@ -36,7 +37,16 @@ export async function GET(req: NextRequest, { params }: MessagesRouteProps) {
   if (parsed.data.before) query = query.lt('created_at', parsed.data.before)
 
   const { data, error } = await query
-  if (error) return jsonError(error.message, 500)
+  if (error) {
+    logServerError('Dating messages query failed', {
+      route: 'dating/matches/messages',
+      operation: 'list_messages',
+      code: error.code ?? 'unknown',
+      errorMessage: error.message,
+      userId: user.id,
+    })
+    return jsonError('Could not load messages right now.', 500)
+  }
 
   await serviceClient
     .from('dating_messages')
@@ -46,7 +56,7 @@ export async function GET(req: NextRequest, { params }: MessagesRouteProps) {
     .is('read_at', null)
     .is('deleted_at', null)
 
-  return NextResponse.json([...(data ?? [])].reverse())
+  return NextResponse.json([...(data ?? [])].reverse().map(maskDeletedMessageBody))
 }
 
 export async function POST(req: NextRequest, { params }: MessagesRouteProps) {
@@ -93,7 +103,16 @@ export async function POST(req: NextRequest, { params }: MessagesRouteProps) {
     .select()
     .single()
 
-  if (error) return jsonError(error.message, 500)
+  if (error) {
+    logServerError('Dating message insert failed', {
+      route: 'dating/matches/messages',
+      operation: 'insert_message',
+      code: error.code ?? 'unknown',
+      errorMessage: error.message,
+      userId: user.id,
+    })
+    return jsonError('Could not send the message right now.', 500)
+  }
 
   await serviceClient
     .from('matches')

@@ -4,6 +4,7 @@ import { isAdminEmail } from '@/lib/admin'
 import { adminReportStatusSchema } from '@/lib/dating'
 import { jsonError, parseJson } from '@/lib/api'
 import { buildNotification } from '@/lib/notifications'
+import { logServerError } from '@/lib/logging'
 
 interface AdminReportRouteProps {
   params: Promise<{ id: string }>
@@ -15,7 +16,10 @@ export async function PATCH(req: NextRequest, { params }: AdminReportRouteProps)
   const { data: { user } } = await supabase.auth.getUser()
 
   if (!user) return jsonError('Unauthorized', 401)
-  if (!isAdminEmail(user.email)) return jsonError('Forbidden', 403)
+  if (!isAdminEmail(user.email, undefined, {
+    emailConfirmedAt: user.email_confirmed_at,
+    emailVerified: user.user_metadata?.email_verified,
+  })) return jsonError('Forbidden', 403)
 
   const parsed = await parseJson(req, adminReportStatusSchema)
   if (parsed.error) return parsed.error
@@ -40,7 +44,16 @@ export async function PATCH(req: NextRequest, { params }: AdminReportRouteProps)
     .select()
     .single()
 
-  if (error) return jsonError(error.message, 500)
+  if (error) {
+    logServerError('Admin report update failed', {
+      route: 'admin/reports',
+      operation: 'update_report',
+      code: error.code ?? 'unknown',
+      errorMessage: error.message,
+      userId: user.id,
+    })
+    return jsonError('Could not update report right now.', 500)
+  }
 
   if (parsed.data.block_reported_user) {
     await serviceClient.from('user_blocks').upsert({
