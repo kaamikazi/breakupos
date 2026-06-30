@@ -1,5 +1,6 @@
 import { createServiceClient } from '@/lib/supabase-server'
 import { USERNAME_MAX_LENGTH, fallbackUsername } from '@/lib/social-profile'
+import { isSafePublicHttpsUrl } from '@/lib/dating'
 
 interface AuthUserProfileInput {
   id: string
@@ -22,10 +23,11 @@ export function buildProfileDefaultsForUser(user: AuthUserProfileInput) {
   const baseUsername = fallbackUsername({ email, displayName, userId: user.id })
   const suffix = `-${user.id.slice(0, 6)}`
   const username = `${baseUsername.slice(0, USERNAME_MAX_LENGTH - suffix.length)}${suffix}`
-  const avatarUrl =
+  const rawAvatarUrl =
     typeof user.user_metadata?.avatar_url === 'string' ? user.user_metadata.avatar_url :
     typeof user.user_metadata?.picture === 'string' ? user.user_metadata.picture :
     null
+  const avatarUrl = rawAvatarUrl && isSafePublicHttpsUrl(rawAvatarUrl) ? rawAvatarUrl : null
 
   return {
     email,

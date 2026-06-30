@@ -246,7 +246,7 @@ npm.cmd run build
 - Verification is a trust badge placeholder only: users can request review, but real selfie/video or ID verification is still TODO.
 - Messaging has simple anti-spam checks for repeated identical messages and obvious low-effort spam.
 - Notifications are in-app only for new matches, new messages, report status changes, and weekly summaries. Email/push is a future integration.
-- Profile photos upload to the Supabase `profile-photos` bucket. The beta uses public URLs for simple discovery rendering; storage paths are not exposed in public discovery/chat payloads.
+- Profile photos upload to `profile-photos`; social post photos upload to `social-posts`. The beta uses public bucket URLs for simple rendering, so old image URLs can remain directly accessible until the storage object is deleted. Storage paths are not exposed in public discovery/chat payloads.
 - `/admin/reports` is gated by `ADMIN_EMAILS` and supports basic report status review.
 - Destructive delete-all requires an explicit confirmation payload.
 - Local PIN and private vault are convenience controls, not encryption. Treat real encrypted vault support as future work.

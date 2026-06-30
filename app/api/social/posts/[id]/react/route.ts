@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { createServerSupabaseClient, createServiceClient } from '@/lib/supabase-server'
 import { getClientIp, jsonError, parseJson, rateLimit } from '@/lib/api'
 import { computeCommunityVerdict, decideReaction, socialReactionSchema, type SocialReaction } from '@/lib/social'
+import { logServerError } from '@/lib/logging'
 
 interface ReactRouteProps {
   params: Promise<{ id: string }>
@@ -57,14 +58,32 @@ export async function POST(req: NextRequest, { params }: ReactRouteProps) {
         { post_id: id, user_id: user.id, reaction_type: parsed.data.reaction_type },
         { onConflict: 'post_id,user_id' }
       )
-    if (error) return jsonError(error.message, 500)
+    if (error) {
+      logServerError('Social reaction upsert failed', {
+        route: 'social/posts/[id]/react',
+        operation: 'upsert_reaction',
+        code: error.code ?? 'unknown',
+        errorMessage: error.message,
+        userId: user.id,
+      })
+      return jsonError('Could not save your reaction right now.', 500)
+    }
   }
 
   const { data: reactions, error: countError } = await serviceClient
     .from('social_post_reactions')
     .select('reaction_type')
     .eq('post_id', id)
-  if (countError) return jsonError(countError.message, 500)
+  if (countError) {
+    logServerError('Social reaction count failed', {
+      route: 'social/posts/[id]/react',
+      operation: 'count_reactions',
+      code: countError.code ?? 'unknown',
+      errorMessage: countError.message,
+      userId: user.id,
+    })
+    return jsonError('Could not refresh reaction counts right now.', 500)
+  }
 
   const loveCount = (reactions ?? []).filter(reaction => reaction.reaction_type === 'love').length
   const redFlagCount = (reactions ?? []).filter(reaction => reaction.reaction_type === 'red_flag').length

@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { createServerSupabaseClient, createServiceClient } from '@/lib/supabase-server'
 import { jsonError } from '@/lib/api'
 import { SOCIAL_POST_BUCKET, canDeleteSocialPost } from '@/lib/social'
+import { logServerError } from '@/lib/logging'
 
 interface SocialPostRouteProps {
   params: Promise<{ id: string }>
@@ -35,7 +36,16 @@ export async function DELETE(_req: NextRequest, { params }: SocialPostRouteProps
     .eq('id', id)
     .eq('user_id', user.id)
 
-  if (error) return jsonError(error.message, 500)
+  if (error) {
+    logServerError('Social post delete failed', {
+      route: 'social/posts/[id]',
+      operation: 'soft_delete_post',
+      code: error.code ?? 'unknown',
+      errorMessage: error.message,
+      userId: user.id,
+    })
+    return jsonError('Could not delete the post right now.', 500)
+  }
 
   // Best-effort storage cleanup; the soft-deleted row keeps the feed history consistent.
   if (post.storage_path) {

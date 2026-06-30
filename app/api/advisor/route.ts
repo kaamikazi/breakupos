@@ -5,7 +5,8 @@ import { checkAIQuota, ensureProfileForUser } from '@/lib/quota'
 import { anthropic, extractText, ADVISOR_SYSTEM_PROMPT, SAFETY_DISCLAIMER } from '@/lib/anthropic'
 import { ADVICE_TYPE_VALUES, FIELD_LIMITS } from '@/lib/domain'
 import { getClientIp, jsonError, parseJson, rateLimit } from '@/lib/api'
-import { aiActionForAdvisor, canAffordCredits, getCreditBalance, getCreditCost, recordAIUsageEvent, spendCredits } from '@/lib/credits'
+import { aiActionForAdvisor, canAffordCredits, getCreditBalance, getCreditCost, recordAIUsageEvent, refundCredits, spendCredits } from '@/lib/credits'
+import { logServerError } from '@/lib/logging'
 
 const advisorSchema = z.object({
   situation_id: z.string().uuid(),
@@ -48,8 +49,6 @@ export async function POST(req: NextRequest) {
     }
     shouldChargeCredits = true
   }
-
-  await recordAIUsageEvent({ userId: user.id, action: creditAction, status: 'started' })
 
   const serviceClient = createServiceClient()
 
@@ -95,13 +94,27 @@ TONE: ${parsed.data.tone}
 PASTED MESSAGE OR THREAD:
 ${parsed.data.message_text || 'none'}
 
-USER QUESTION: ${parsed.data.question}
-`
+	USER QUESTION: ${parsed.data.question}
+	`
 
-  const message = await anthropic.messages.create({
-    model: 'claude-sonnet-4-6',
-    max_tokens: parsed.data.mode === 'draft_reply' ? 450 : 320,
-    system: `${ADVISOR_SYSTEM_PROMPT}
+  let reservedCredits = 0
+  if (shouldChargeCredits) {
+    const charge = await spendCredits({ userId: user.id, action: creditAction })
+    if (!charge.ok) {
+      await recordAIUsageEvent({ userId: user.id, action: creditAction, status: 'blocked' })
+      return jsonError(`AI limit reached. This action costs ${getCreditCost(creditAction)} credits.`, 402)
+    }
+    reservedCredits = charge.amount
+  }
+
+  await recordAIUsageEvent({ userId: user.id, action: creditAction, status: 'started' })
+
+  let message: Awaited<ReturnType<typeof anthropic.messages.create>>
+  try {
+    message = await anthropic.messages.create({
+      model: 'claude-sonnet-4-6',
+      max_tokens: parsed.data.mode === 'draft_reply' ? 450 : 320,
+      system: `${ADVISOR_SYSTEM_PROMPT}
 
 Tone guidance:
 - gentle: warm, steady, low shame.
@@ -112,8 +125,22 @@ Tone guidance:
 For draft_reply, write 2-3 reply options and explain which one is safest.
 For analyze_message, summarize signals, risks, and the next move.
 Include this safety note when relevant: ${SAFETY_DISCLAIMER}`,
-    messages: [{ role: 'user', content: contextBlock }],
-  })
+      messages: [{ role: 'user', content: contextBlock }],
+    })
+  } catch (error) {
+    if (shouldChargeCredits && reservedCredits > 0) {
+      await refundCredits({ userId: user.id, action: creditAction, amount: reservedCredits })
+    }
+    await recordAIUsageEvent({ userId: user.id, action: creditAction, status: 'failed' })
+    logServerError('AI advisor provider call failed', {
+      route: 'advisor',
+      operation: 'anthropic_call',
+      code: 'provider_error',
+      errorMessage: error instanceof Error ? error.message : 'Unknown provider error',
+      userId: user.id,
+    })
+    return jsonError('The AI advisor is temporarily unavailable. Please try again.', 502)
+  }
 
   const advice = extractText(message)
   if (!advice) {
@@ -140,19 +167,23 @@ Include this safety note when relevant: ${SAFETY_DISCLAIMER}`,
     .select()
     .single()
 
-  if (error) return jsonError(error.message, 500)
+  if (error) {
+    logServerError('AI advisor save failed', {
+      route: 'advisor',
+      operation: 'save_advice',
+      code: error.code ?? 'unknown',
+      errorMessage: error.message,
+      userId: user.id,
+    })
+    return jsonError('Could not save AI advice right now.', 500)
+  }
 
   if (shouldChargeCredits) {
-    const charge = await spendCredits({ userId: user.id, action: creditAction, referenceId: savedAdvice.id })
-    if (!charge.ok) {
-      await recordAIUsageEvent({ userId: user.id, action: creditAction, status: 'blocked', referenceId: savedAdvice.id })
-      return jsonError('This AI response was created, but your credits could not be charged. Please try again.', 409)
-    }
     await recordAIUsageEvent({
       userId: user.id,
       action: creditAction,
       status: 'succeeded',
-      creditsCharged: charge.amount,
+      creditsCharged: reservedCredits,
       referenceId: savedAdvice.id,
     })
   } else {

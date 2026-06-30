@@ -6,6 +6,7 @@ import { authorizeCronRequest } from '@/lib/cron-security'
 import { getProtectedRouteRedirect, isPublicAppPath } from '@/lib/auth-flow'
 import { maskDeletedMessageBody } from '@/lib/dating-chat'
 import { profileOnboardingSchema } from '@/lib/onboarding'
+import { buildProfileDefaultsForUser } from '@/lib/quota'
 import {
   buildSafeSocialFeedPayload,
   hasValidImageSignature,
@@ -139,6 +140,8 @@ describe('security hardening helpers', () => {
     expect(migration).toContain('source_post.user_id = receiver_id')
     expect(migration).toContain('source_post.is_deleted = FALSE')
     expect(migration).toContain('refund_user_credits')
+    expect(migration).toContain('DROP POLICY IF EXISTS "Match participants can insert own messages"')
+    expect(migration).toContain('DROP POLICY IF EXISTS "Users can insert own likes"')
   })
 
   it('reserves credits before the paid message analyzer provider call', () => {
@@ -146,5 +149,78 @@ describe('security hardening helpers', () => {
     expect(route.indexOf('await spendCredits')).toBeGreaterThan(-1)
     expect(route.indexOf('await spendCredits')).toBeLessThan(route.indexOf('anthropic.messages.create'))
     expect(route).toContain('refundCredits')
+  })
+
+  it('keeps social rankings from returning raw user ids or hidden profiles', () => {
+    const route = readFileSync(join(repoRoot, 'app/api/social/rankings/route.ts'), 'utf8')
+    expect(route).toContain('public_profile_visible')
+    expect(route).toContain('profile?.public_profile_visible === true')
+    expect(route).not.toContain('...rest')
+  })
+
+  it('masks deleted message bodies in JSON export too', () => {
+    const route = readFileSync(join(repoRoot, 'app/api/export/route.ts'), 'utf8')
+    expect(route).toContain('safeDatingMessages')
+    expect(route).toContain('maskDeletedMessageBody')
+    expect(route).toContain('dating_messages: safeDatingMessages')
+  })
+
+  it('reserves credits before the paid advisor provider call', () => {
+    const route = readFileSync(join(repoRoot, 'app/api/advisor/route.ts'), 'utf8')
+    expect(route.indexOf('await spendCredits')).toBeGreaterThan(-1)
+    expect(route.indexOf('await spendCredits')).toBeLessThan(route.indexOf('anthropic.messages.create'))
+    expect(route).toContain('refundCredits')
+  })
+
+  it('does not allow older migrations to recreate the weakest message request insert policy', () => {
+    const migrations = [
+      'supabase/schema.sql',
+      'supabase/social-profiles-message-requests.sql',
+      'supabase/security-hardening-beta.sql',
+    ].map(file => readFileSync(join(repoRoot, file), 'utf8')).join('\n')
+    expect(migrations).not.toContain('FOR INSERT WITH CHECK (auth.uid() = sender_id);')
+
+    const docs = readFileSync(join(repoRoot, 'docs/DEPLOYMENT.md'), 'utf8')
+    expect(docs).toContain('security-hardening-beta.sql` last')
+  })
+
+  it('drops direct anon inserts for dating messages and likes', () => {
+    const schema = readFileSync(join(repoRoot, 'supabase/schema.sql'), 'utf8')
+    expect(schema).toContain('Chat messages are API-only writes')
+    expect(schema).toContain('Likes are API-only writes')
+    expect(schema).not.toContain('CREATE POLICY "Match participants can insert own messages"')
+    expect(schema).not.toContain('CREATE POLICY "Users can insert own likes"')
+  })
+
+  it('does not store unsafe provider avatar defaults', () => {
+    const unsafe = buildProfileDefaultsForUser({
+      id: '12345678-1234-1234-1234-123456789abc',
+      email: 'user@example.com',
+      user_metadata: { avatar_url: 'http://localhost/avatar.png' },
+    })
+    expect(unsafe.avatarUrl).toBeNull()
+
+    const safe = buildProfileDefaultsForUser({
+      id: '12345678-1234-1234-1234-123456789abc',
+      email: 'user@example.com',
+      user_metadata: { picture: 'https://lh3.googleusercontent.com/avatar.png' },
+    })
+    expect(safe.avatarUrl).toBe('https://lh3.googleusercontent.com/avatar.png')
+  })
+
+  it('validates block targets and keeps raw database errors out of touched routes', () => {
+    const blockRoute = readFileSync(join(repoRoot, 'app/api/dating/block/route.ts'), 'utf8')
+    expect(blockRoute).toContain('Profile not found.')
+    expect(blockRoute).toContain('Could not block this profile right now.')
+    expect(blockRoute).toContain('logServerError')
+
+    const touchedRoutes = [
+      'app/api/social/posts/[id]/route.ts',
+      'app/api/social/posts/[id]/react/route.ts',
+      'app/api/dating/block/route.ts',
+      'app/api/dating/matches/[id]/messages/[messageId]/route.ts',
+    ].map(file => readFileSync(join(repoRoot, file), 'utf8')).join('\n')
+    expect(touchedRoutes).not.toMatch(/jsonError\([^,\n]*error\.message/)
+    expect(touchedRoutes).not.toMatch(/jsonError\([^,\n]*countError\.message/)
   })
 })

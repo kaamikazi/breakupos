@@ -4,6 +4,14 @@
 -- Message requests must not be insertable directly through the anon key in a
 -- way that bypasses app-level checks for public visibility, blocks, self-send,
 -- or source post ownership.
+--
+-- Dating chat messages and likes are API-only writes in the app. The server
+-- routes enforce rate limits, blocks, validation, daily like limits, and safety
+-- checks before writing with the service role, so direct anon INSERT policies
+-- are intentionally removed here.
+DROP POLICY IF EXISTS "Match participants can insert own messages" ON public.dating_messages;
+DROP POLICY IF EXISTS "Users can insert own likes" ON public.profile_likes;
+
 ALTER TABLE public.message_requests
   DROP CONSTRAINT IF EXISTS message_requests_no_self_check;
 

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase-server'
 import { jsonError } from '@/lib/api'
 import type { AIAdvice, AppNotification, DatingMatch, DatingMessage, DatingProfileWithPhotos, Interaction, ProfileLike, ProfilePass, RelationshipReport, Situation, UserBlock, UserReport, WeeklySummary } from '@/types'
+import { maskDeletedMessageBody } from '@/lib/dating-chat'
 
 function escapeCsv(value: unknown): string {
   const str = value == null ? '' : String(value)
@@ -93,6 +94,7 @@ export async function GET(req: NextRequest) {
   const { data: datingMessages } = matchIds.length
     ? await supabase.from('dating_messages').select('*').in('match_id', matchIds).order('created_at', { ascending: true })
     : { data: [] }
+  const safeDatingMessages = ((datingMessages ?? []) as DatingMessage[]).map(maskDeletedMessageBody)
   const dating = datingProfile
     ? ({ ...datingProfile, photos: profilePhotos ?? [] } as DatingProfileWithPhotos)
     : null
@@ -138,7 +140,7 @@ export async function GET(req: NextRequest) {
       '## Dating Messages',
       rowsToCsv(
         ['id', 'match_id', 'body', 'created_at', 'deleted_at', 'read_at'],
-        ((datingMessages ?? []) as DatingMessage[]).map(message => [message.id, message.match_id, message.deleted_at ? 'Message deleted' : message.body, message.created_at, message.deleted_at ?? '', message.read_at ?? ''])
+        safeDatingMessages.map(message => [message.id, message.match_id, message.body, message.created_at, message.deleted_at ?? '', message.read_at ?? ''])
       ),
       '',
       '## Notifications',
@@ -168,7 +170,7 @@ export async function GET(req: NextRequest) {
       profile_likes: (profileLikes ?? []) as ProfileLike[],
       profile_passes: (profilePasses ?? []) as ProfilePass[],
       matches: (datingMatches ?? []) as DatingMatch[],
-      dating_messages: (datingMessages ?? []) as DatingMessage[],
+      dating_messages: safeDatingMessages,
       user_blocks: (userBlocks ?? []) as UserBlock[],
       user_reports: (userReports ?? []) as UserReport[],
       notifications: (notifications ?? []) as AppNotification[],

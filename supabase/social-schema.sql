@@ -1,4 +1,5 @@
 -- BreakupOS Social Feed Schema (photo-only posts + Love / Red Flag reactions)
+-- Superseded by security-hardening-beta.sql. Run hardening migration last.
 --
 -- Safe run instructions:
 -- 1. Run supabase/schema.sql first (profiles must exist).
@@ -47,7 +48,7 @@ CREATE POLICY "Users can view live social posts" ON social_posts FOR SELECT USIN
 DROP POLICY IF EXISTS "Users can insert own social posts" ON social_posts;
 CREATE POLICY "Users can insert own social posts" ON social_posts FOR INSERT WITH CHECK (auth.uid() = user_id);
 DROP POLICY IF EXISTS "Users can update own social posts" ON social_posts;
-CREATE POLICY "Users can update own social posts" ON social_posts FOR UPDATE USING (auth.uid() = user_id);
+CREATE POLICY "Users can update own social posts" ON social_posts FOR UPDATE USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
 DROP POLICY IF EXISTS "Users can delete own social posts" ON social_posts;
 CREATE POLICY "Users can delete own social posts" ON social_posts FOR DELETE USING (auth.uid() = user_id);
 

@@ -3,6 +3,7 @@ import { createServerSupabaseClient, createServiceClient } from '@/lib/supabase-
 import { datingActionSchema } from '@/lib/dating'
 import { getClientIp, jsonError, parseJson, rateLimit } from '@/lib/api'
 import { canBlockUser } from '@/lib/dating-chat'
+import { logServerError } from '@/lib/logging'
 
 export async function POST(req: NextRequest) {
   const supabase = await createServerSupabaseClient()
@@ -18,6 +19,24 @@ export async function POST(req: NextRequest) {
   if (!canBlockUser(user.id, parsed.data.target_user_id)) return jsonError('You cannot block your own profile.', 400)
 
   const serviceClient = createServiceClient()
+  const { data: targetProfile, error: targetError } = await serviceClient
+    .from('profiles')
+    .select('id')
+    .eq('id', parsed.data.target_user_id)
+    .maybeSingle()
+
+  if (targetError) {
+    logServerError('Block target lookup failed', {
+      route: 'dating/block',
+      operation: 'lookup_target',
+      code: targetError.code ?? 'unknown',
+      errorMessage: targetError.message,
+      userId: user.id,
+    })
+    return jsonError('Could not block this profile right now.', 500)
+  }
+  if (!targetProfile) return jsonError('Profile not found.', 404)
+
   const { error } = await serviceClient
     .from('user_blocks')
     .upsert(
@@ -25,7 +44,16 @@ export async function POST(req: NextRequest) {
       { onConflict: 'blocker_user_id,blocked_user_id' }
     )
 
-  if (error) return jsonError(error.message, 500)
+  if (error) {
+    logServerError('Block upsert failed', {
+      route: 'dating/block',
+      operation: 'upsert_block',
+      code: error.code ?? 'unknown',
+      errorMessage: error.message,
+      userId: user.id,
+    })
+    return jsonError('Could not block this profile right now.', 500)
+  }
 
   return NextResponse.json({ ok: true })
 }
@@ -50,7 +78,16 @@ export async function DELETE(req: NextRequest) {
     .eq('blocker_user_id', user.id)
     .eq('blocked_user_id', parsed.data.target_user_id)
 
-  if (error) return jsonError(error.message, 500)
+  if (error) {
+    logServerError('Unblock delete failed', {
+      route: 'dating/block',
+      operation: 'delete_block',
+      code: error.code ?? 'unknown',
+      errorMessage: error.message,
+      userId: user.id,
+    })
+    return jsonError('Could not unblock this profile right now.', 500)
+  }
   if (count === 0) return jsonError('Block not found.', 404)
 
   return NextResponse.json({ ok: true })

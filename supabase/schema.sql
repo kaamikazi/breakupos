@@ -554,7 +554,7 @@ CREATE POLICY "Users can delete own profile photos" ON profile_photos FOR DELETE
 DROP POLICY IF EXISTS "Users can view own likes" ON profile_likes;
 CREATE POLICY "Users can view own likes" ON profile_likes FOR SELECT USING (auth.uid() = liker_user_id OR auth.uid() = liked_user_id);
 DROP POLICY IF EXISTS "Users can insert own likes" ON profile_likes;
-CREATE POLICY "Users can insert own likes" ON profile_likes FOR INSERT WITH CHECK (auth.uid() = liker_user_id);
+-- Likes are API-only writes so daily limits, blocks, and visibility checks cannot be bypassed with the anon key.
 
 DROP POLICY IF EXISTS "Users can view own passes" ON profile_passes;
 CREATE POLICY "Users can view own passes" ON profile_passes FOR SELECT USING (auth.uid() = passer_user_id);
@@ -585,13 +585,7 @@ CREATE POLICY "Match participants can view messages" ON dating_messages FOR SELE
   )
 );
 DROP POLICY IF EXISTS "Match participants can insert own messages" ON dating_messages;
-CREATE POLICY "Match participants can insert own messages" ON dating_messages FOR INSERT WITH CHECK (
-  auth.uid() = sender_id AND EXISTS (
-    SELECT 1 FROM matches
-    WHERE matches.id = dating_messages.match_id
-      AND (matches.user_one_id = auth.uid() OR matches.user_two_id = auth.uid())
-  )
-);
+-- Chat messages are API-only writes so block checks, spam rules, and validation cannot be bypassed with the anon key.
 DROP POLICY IF EXISTS "Senders can update own messages" ON dating_messages;
 CREATE POLICY "Senders can update own messages" ON dating_messages FOR UPDATE USING (auth.uid() = sender_id) WITH CHECK (auth.uid() = sender_id);
 

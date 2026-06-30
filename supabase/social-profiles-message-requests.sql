@@ -1,4 +1,5 @@
 -- Public social profiles + message requests.
+-- Superseded by security-hardening-beta.sql. Run hardening migration last.
 -- Run after supabase/schema.sql and supabase/social-schema.sql. Safe to rerun.
 
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS username TEXT;
@@ -56,16 +57,47 @@ FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
 ALTER TABLE public.message_requests ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "Users can view public profiles" ON public.profiles;
-CREATE POLICY "Users can view public profiles" ON public.profiles FOR SELECT USING (public_profile_visible = TRUE);
+CREATE POLICY "Users can view public profiles" ON public.profiles FOR SELECT USING (auth.uid() IS NOT NULL AND public_profile_visible = TRUE);
 
 DROP POLICY IF EXISTS "Users can view own message requests" ON public.message_requests;
 CREATE POLICY "Users can view own message requests" ON public.message_requests FOR SELECT USING (
   auth.uid() = sender_id OR auth.uid() = receiver_id
 );
 DROP POLICY IF EXISTS "Users can insert sent message requests" ON public.message_requests;
-CREATE POLICY "Users can insert sent message requests" ON public.message_requests FOR INSERT WITH CHECK (auth.uid() = sender_id);
+CREATE POLICY "Users can insert sent message requests" ON public.message_requests FOR INSERT WITH CHECK (
+  auth.uid() = sender_id
+  AND sender_id <> receiver_id
+  AND EXISTS (
+    SELECT 1 FROM public.profiles receiver
+    WHERE receiver.id = receiver_id
+      AND receiver.public_profile_visible = TRUE
+  )
+  AND NOT EXISTS (
+    SELECT 1 FROM public.user_blocks blocks
+    WHERE blocks.blocker_user_id = sender_id
+      AND blocks.blocked_user_id = receiver_id
+  )
+  AND NOT EXISTS (
+    SELECT 1 FROM public.user_blocks blocks
+    WHERE blocks.blocker_user_id = receiver_id
+      AND blocks.blocked_user_id = sender_id
+  )
+  AND (
+    source_post_id IS NULL
+    OR EXISTS (
+      SELECT 1 FROM public.social_posts source_post
+      WHERE source_post.id = source_post_id
+        AND source_post.user_id = receiver_id
+        AND source_post.is_deleted = FALSE
+    )
+  )
+);
 DROP POLICY IF EXISTS "Receivers can update incoming message requests" ON public.message_requests;
-CREATE POLICY "Receivers can update incoming message requests" ON public.message_requests FOR UPDATE USING (auth.uid() = receiver_id) WITH CHECK (auth.uid() = receiver_id);
+CREATE POLICY "Receivers can update incoming message requests" ON public.message_requests FOR UPDATE USING (auth.uid() = receiver_id AND status = 'pending') WITH CHECK (
+  auth.uid() = receiver_id
+  AND sender_id <> receiver_id
+  AND status IN ('accepted', 'declined', 'blocked')
+);
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_message_requests_pending_pair ON public.message_requests(sender_id, receiver_id) WHERE status = 'pending';
 CREATE INDEX IF NOT EXISTS idx_message_requests_receiver_created ON public.message_requests(receiver_id, created_at DESC);

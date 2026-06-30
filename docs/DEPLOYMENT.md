@@ -46,7 +46,7 @@ Use `.env.example` as the source template for local setup.
    - `supabase/security-hardening-beta.sql`
 6. Important: a Vercel deploy does not update Supabase tables. If production errors with `column profiles_1.username does not exist`, `column profiles_1.avatar_url does not exist`, public social names show auth/email-derived names, beta approval does not persist, or first-run onboarding cannot save preferences, run the relevant SQL migration in the Supabase SQL editor, confirm it succeeds, then redeploy or refresh the app.
 7. Before testing required first-run onboarding in production, run `supabase/profile-onboarding.sql`. It is intentionally self-contained and adds `public_display_name`, `username`, `bio`, `avatar_url`, `onboarding_reasons`, `first_goal`, `profile_completed_at`, `public_profile_visible`, the unique lowercase username index, and the own-profile update RLS policy.
-8. Before public beta traffic, run `supabase/security-hardening-beta.sql`. It locks down direct `message_requests` inserts with RLS, requires signed-in users for public profile/dating/photo reads, adds safer update `WITH CHECK` policies, and creates `refund_user_credits` for AI-credit rollback.
+8. Before public beta traffic, run `supabase/security-hardening-beta.sql` last, after all older/schema migrations. It locks down direct `message_requests` inserts with RLS, removes direct anon insert policies for dating messages and profile likes, requires signed-in users for public profile/dating/photo reads, adds safer update `WITH CHECK` policies, and creates `refund_user_credits` for AI-credit rollback.
 9. Confirm RLS is enabled on:
    - `profiles`
    - `situations`
@@ -85,13 +85,15 @@ Use `.env.example` as the source template for local setup.
 ## Supabase Storage Setup
 
 1. Create a Storage bucket named `profile-photos`.
-2. For the private beta, configure it as public so discovery cards can render image URLs without signed URL churn.
+2. For the private beta, configure it as public so discovery cards can render image URLs without signed URL churn. Important: public bucket URLs can still be opened by anyone who already has the URL until the object is deleted.
 3. Add bucket policies that allow authenticated users to upload into their own folder path and read public objects. Server API routes still enforce ownership before writing/deleting metadata.
 4. Confirm max upload size is compatible with the app limit: 5MB.
-5. If you switch to a private bucket later, update the app to mint short-lived signed URLs for profile display.
-6. Create a Storage bucket named `social-posts`.
-7. For the photo-only social beta, configure `social-posts` as public with a 5MB limit and allowed MIME types `image/jpeg`, `image/png`, and `image/webp`.
-8. Social posts intentionally have no captions/comments. Red Flag reactions apply to the situation/post, not the person.
+5. If a profile is hidden, app APIs should stop showing its photos; deleting a photo should also remove the storage object where possible.
+6. Production TODO: switch profile photos to a private bucket and mint short-lived signed URLs for profile display.
+7. Create a Storage bucket named `social-posts`.
+8. For the photo-only social beta, configure `social-posts` as public with a 5MB limit and allowed MIME types `image/jpeg`, `image/png`, and `image/webp`. Public URLs remain accessible until the object is deleted.
+9. Social posts intentionally have no captions/comments. Red Flag reactions apply to the situation/post, not the person.
+10. Production TODO: switch social photos to a private bucket and serve signed URLs, or proxy images through a controlled route.
 
 ## Credits / Cost Protection
 
@@ -117,11 +119,11 @@ Use `.env.example` as the source template for local setup.
 2. For tonight's social profile launch, run `supabase/public-identity-fields.sql` first. It adds `profiles.public_display_name`, `username`, `avatar_url`, `bio`, `public_profile_visible`, `social_vibe`, `public_location`, and `profile_completed_at`, then backfills safe public names/usernames and creates a unique `lower(username)` index.
 3. Run `supabase/beta-access-account-delete.sql` before enabling the private beta gate. It adds `profiles.beta_approved_at`, which stores permanent per-account beta approval.
 4. Run `supabase/profile-onboarding.sql` before deploying or testing the required first-run setup flow. It adds all profile fields used by onboarding, creates `profiles_username_lower_unique`, and recreates the safe `Users can update own profile` RLS policy.
-5. Run `supabase/security-hardening-beta.sql` before launch. Vercel deploy alone will not apply the message request RLS policies, direct-Supabase protections, or AI credit refund RPC.
 5. Run the full `supabase/schema.sql` for new environments, or the focused migrations listed above for existing environments.
-6. Confirm indexes were created.
-7. Confirm policies exist and do not duplicate.
-8. Smoke-test one user account before opening traffic.
+6. Run `supabase/security-hardening-beta.sql` last before launch. Vercel deploy alone will not apply the message request RLS policies, API-only write protections for chat/likes, or AI credit refund RPC.
+7. Confirm indexes were created.
+8. Confirm policies exist and do not duplicate.
+9. Smoke-test one user account before opening traffic.
 
 The schema is designed to be rerunnable: triggers and policies are dropped before recreation, columns use `ADD COLUMN IF NOT EXISTS`, and indexes use `CREATE INDEX IF NOT EXISTS`.
 
