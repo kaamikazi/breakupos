@@ -69,6 +69,9 @@ export async function POST(req: NextRequest, { params }: MessagesRouteProps) {
   const limit = await rateLimit(`dating-message:${user.id}:${getClientIp(req)}`, 120, 60 * 60 * 1000)
   if (limit.limited) return jsonError('Message rate limit reached. Try again later.', 429)
 
+  const matchBurstLimit = await rateLimit(`dating-message-match:${user.id}:${id}`, 20, 10 * 60 * 1000)
+  if (matchBurstLimit.limited) return jsonError('You are sending messages too quickly in this chat. Take a short pause and try again.', 429)
+
   const parsed = await parseJson(req, chatMessageSchema)
   if (parsed.error) return parsed.error
 

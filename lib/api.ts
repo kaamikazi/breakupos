@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { Ratelimit } from '@upstash/ratelimit'
 import { Redis } from '@upstash/redis'
+import { logServerWarning } from '@/lib/logging'
 
 type Bucket = {
   count: number
@@ -70,6 +71,23 @@ function getRedis(): Redis | null {
   }
   redisClient = new Redis({ url, token })
   return redisClient
+}
+
+export function isDurableRateLimitConfigured() {
+  return Boolean(process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN)
+}
+
+export function productionAiRateLimitGuard(route: string, userId?: string): NextResponse | null {
+  if (process.env.NODE_ENV !== 'production') return null
+  if (!process.env.ANTHROPIC_API_KEY) return null
+  if (isDurableRateLimitConfigured()) return null
+
+  logServerWarning('Durable rate limiting is missing for an expensive AI route', {
+    route,
+    userId,
+    code: 'missing_upstash_rate_limit',
+  })
+  return jsonError('AI features are temporarily unavailable while rate limiting is configured.', 503)
 }
 
 // Cache one Ratelimit instance per (limit, window) combination so we reuse

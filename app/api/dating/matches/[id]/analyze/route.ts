@@ -4,6 +4,7 @@ import { getClientIp, jsonError, rateLimit } from '@/lib/api'
 import { getOtherParticipantId, isMatchParticipant } from '@/lib/dating-chat'
 import { analyzeDatingChat } from '@/lib/dating-premium'
 import { isProUser } from '@/lib/premium'
+import { logServerError } from '@/lib/logging'
 
 interface AnalyzeRouteProps {
   params: Promise<{ id: string }>
@@ -32,6 +33,15 @@ export async function POST(req: NextRequest, { params }: AnalyzeRouteProps) {
     .order('created_at', { ascending: true })
     .limit(50)
 
-  if (error) return jsonError(error.message, 500)
+  if (error) {
+    logServerError('Dating chat analysis load failed', {
+      route: 'dating/matches/[id]/analyze',
+      operation: 'load_messages',
+      code: error.code ?? 'unknown',
+      errorMessage: error.message,
+      userId: user.id,
+    })
+    return jsonError('Could not analyze this chat right now.', 500)
+  }
   return NextResponse.json({ analysis: analyzeDatingChat(messages ?? []), disclaimer: 'AI can be wrong. Treat this as a reflective prompt, not proof.' })
 }

@@ -13,6 +13,11 @@ export function logServerError(message: string, context?: LogContext) {
   console.error(`[BreakupOS] ${message}`, sanitizeContext(context))
 }
 
+export function logServerWarning(message: string, context?: LogContext) {
+  // TODO: forward sanitized warnings to Sentry, Axiom, or another monitoring provider.
+  console.warn(`[BreakupOS] ${message}`, sanitizeContext(context))
+}
+
 export function logServerInfo(message: string, context?: LogContext) {
   console.info(`[BreakupOS] ${message}`, sanitizeContext(context))
 }

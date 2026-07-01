@@ -142,6 +142,8 @@ describe('security hardening helpers', () => {
     expect(migration).toContain('refund_user_credits')
     expect(migration).toContain('DROP POLICY IF EXISTS "Match participants can insert own messages"')
     expect(migration).toContain('DROP POLICY IF EXISTS "Users can insert own likes"')
+    expect(migration).toContain('prevent_message_request_identity_update')
+    expect(migration).toContain('new.message_text IS DISTINCT FROM old.message_text')
   })
 
   it('reserves credits before the paid message analyzer provider call', () => {
@@ -218,9 +220,41 @@ describe('security hardening helpers', () => {
       'app/api/social/posts/[id]/route.ts',
       'app/api/social/posts/[id]/react/route.ts',
       'app/api/dating/block/route.ts',
+      'app/api/dating/blocks/route.ts',
+      'app/api/dating/discover/route.ts',
+      'app/api/dating/like/route.ts',
+      'app/api/dating/pass/route.ts',
+      'app/api/dating/profile/route.ts',
+      'app/api/dating/photos/[id]/route.ts',
+      'app/api/dating/report/route.ts',
+      'app/api/dating/verification/route.ts',
+      'app/api/dating/matches/[id]/analyze/route.ts',
+      'app/api/dating/matches/[id]/convert/route.ts',
       'app/api/dating/matches/[id]/messages/[messageId]/route.ts',
     ].map(file => readFileSync(join(repoRoot, file), 'utf8')).join('\n')
     expect(touchedRoutes).not.toMatch(/jsonError\([^,\n]*error\.message/)
     expect(touchedRoutes).not.toMatch(/jsonError\([^,\n]*countError\.message/)
+    expect(touchedRoutes).not.toMatch(/jsonError\([^,\n]*likeError\.message/)
+    expect(touchedRoutes).not.toMatch(/jsonError\([^,\n]*matchError\.message/)
+    expect(touchedRoutes).not.toMatch(/jsonError\([^,\n]*profilesError\.message/)
+  })
+
+  it('keeps expensive AI routes behind the production durable limiter guard', () => {
+    const routes = [
+      'app/api/advisor/route.ts',
+      'app/api/message-analyzer/route.ts',
+      'app/api/weekly-summary/generate/route.ts',
+      'app/api/reports/generate/route.ts',
+      'app/api/dating/icebreaker/route.ts',
+      'app/api/dating/matches/[id]/reply-helper/route.ts',
+    ].map(file => readFileSync(join(repoRoot, file), 'utf8')).join('\n')
+    expect(routes).toContain('productionAiRateLimitGuard')
+  })
+
+  it('adds a per-match chat burst limiter in addition to the global message limiter', () => {
+    const route = readFileSync(join(repoRoot, 'app/api/dating/matches/[id]/messages/route.ts'), 'utf8')
+    expect(route).toContain('dating-message:${user.id}:${getClientIp(req)}')
+    expect(route).toContain('dating-message-match:${user.id}:${id}')
+    expect(route).toContain('20, 10 * 60 * 1000')
   })
 })

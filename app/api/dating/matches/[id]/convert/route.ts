@@ -4,6 +4,7 @@ import { calculateCompatibility } from '@/lib/compatibility'
 import { buildSituationFromMatchProfile, getOtherParticipantId, isMatchParticipant } from '@/lib/dating-chat'
 import { jsonError } from '@/lib/api'
 import { checkSituationsQuota, ensureProfileForUser } from '@/lib/quota'
+import { logServerError } from '@/lib/logging'
 
 interface ConvertRouteProps {
   params: Promise<{ id: string }>
@@ -63,6 +64,15 @@ export async function POST(_req: NextRequest, { params }: ConvertRouteProps) {
     .select('id')
     .single()
 
-  if (error) return jsonError(error.message, 500)
+  if (error) {
+    logServerError('Match conversion failed', {
+      route: 'dating/matches/[id]/convert',
+      operation: 'create_situation',
+      code: error.code ?? 'unknown',
+      errorMessage: error.message,
+      userId: user.id,
+    })
+    return jsonError('Could not track this match in Breakup OS right now.', 500)
+  }
   return NextResponse.json({ situation_id: situation.id, existing: false }, { status: 201 })
 }

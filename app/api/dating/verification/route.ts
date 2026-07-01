@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient, createServiceClient } from '@/lib/supabase-server'
 import { jsonError, parseJson } from '@/lib/api'
 import { verificationRequestSchema } from '@/lib/dating'
+import { logServerError } from '@/lib/logging'
 
 export async function POST(req: NextRequest) {
   const supabase = await createServerSupabaseClient()
@@ -30,6 +31,15 @@ export async function POST(req: NextRequest) {
     .select('verification_status')
     .single()
 
-  if (error) return jsonError(error.message, 500)
+  if (error) {
+    logServerError('Dating verification request failed', {
+      route: 'dating/verification',
+      operation: 'request_verification',
+      code: error.code ?? 'unknown',
+      errorMessage: error.message,
+      userId: user.id,
+    })
+    return jsonError('Could not request verification right now.', 500)
+  }
   return NextResponse.json(data)
 }

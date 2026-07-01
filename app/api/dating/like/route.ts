@@ -4,6 +4,7 @@ import { datingActionSchema, getOrderedMatchPair } from '@/lib/dating'
 import { getDailyLikeStatus, getDailyLikeWindow, shouldNotifyNewMatch } from '@/lib/dating-premium'
 import { getClientIp, jsonError, parseJson, rateLimit } from '@/lib/api'
 import { buildNotification } from '@/lib/notifications'
+import { logServerError } from '@/lib/logging'
 
 export async function POST(req: NextRequest) {
   const supabase = await createServerSupabaseClient()
@@ -81,7 +82,16 @@ export async function POST(req: NextRequest) {
     .from('profile_likes')
     .upsert({ liker_user_id: user.id, liked_user_id: targetUserId }, { onConflict: 'liker_user_id,liked_user_id' })
 
-  if (likeError) return jsonError(likeError.message, 500)
+  if (likeError) {
+    logServerError('Dating like insert failed', {
+      route: 'dating/like',
+      operation: 'insert_like',
+      code: likeError.code ?? 'unknown',
+      errorMessage: likeError.message,
+      userId: user.id,
+    })
+    return jsonError('Could not save this like right now.', 500)
+  }
 
   const { data: reciprocal } = await serviceClient
     .from('profile_likes')
@@ -107,7 +117,16 @@ export async function POST(req: NextRequest) {
     .select()
     .single()
 
-  if (matchError) return jsonError(matchError.message, 500)
+  if (matchError) {
+    logServerError('Dating match upsert failed', {
+      route: 'dating/like',
+      operation: 'upsert_match',
+      code: matchError.code ?? 'unknown',
+      errorMessage: matchError.message,
+      userId: user.id,
+    })
+    return jsonError('Could not create this match right now.', 500)
+  }
 
   if (shouldNotifyNewMatch(existingMatchBeforeUpsert)) {
     await Promise.all([

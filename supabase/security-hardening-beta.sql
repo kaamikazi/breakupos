@@ -73,6 +73,29 @@ WITH CHECK (
   AND status IN ('accepted', 'declined', 'blocked')
 );
 
+-- Only request status may change after creation. This prevents direct clients
+-- from rewriting who a request is between, which post it references, or the
+-- original message text while still allowing receiver status updates.
+CREATE OR REPLACE FUNCTION public.prevent_message_request_identity_update()
+RETURNS trigger AS $$
+BEGIN
+  IF new.sender_id IS DISTINCT FROM old.sender_id
+    OR new.receiver_id IS DISTINCT FROM old.receiver_id
+    OR new.source_post_id IS DISTINCT FROM old.source_post_id
+    OR new.message_text IS DISTINCT FROM old.message_text THEN
+    RAISE EXCEPTION 'message request immutable fields cannot be changed';
+  END IF;
+
+  RETURN new;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS message_requests_immutable_fields ON public.message_requests;
+CREATE TRIGGER message_requests_immutable_fields
+BEFORE UPDATE ON public.message_requests
+FOR EACH ROW
+EXECUTE FUNCTION public.prevent_message_request_identity_update();
+
 -- Keep public discovery/profile reads available only to signed-in beta users.
 DROP POLICY IF EXISTS "Users can view public profiles" ON public.profiles;
 CREATE POLICY "Users can view public profiles"

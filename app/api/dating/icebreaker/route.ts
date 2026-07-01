@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { anthropic, extractText, ADVISOR_SYSTEM_PROMPT } from '@/lib/anthropic'
-import { getClientIp, jsonError, parseJson, rateLimit } from '@/lib/api'
+import { getClientIp, jsonError, parseJson, productionAiRateLimitGuard, rateLimit } from '@/lib/api'
 import { buildIcebreakerPrompt, getIcebreakerFallback, icebreakerSchema } from '@/lib/dating-premium'
 import { isProUser } from '@/lib/premium'
 import { createServerSupabaseClient, createServiceClient } from '@/lib/supabase-server'
@@ -12,6 +12,9 @@ export async function POST(req: NextRequest) {
 
   if (!user) return jsonError('Unauthorized', 401)
   if (!(await isProUser(user.id))) return jsonError('AI icebreakers are a Dating Pro feature.', 403)
+
+  const productionGuard = productionAiRateLimitGuard('dating-icebreaker', user.id)
+  if (productionGuard) return productionGuard
 
   const limit = await rateLimit(`dating-icebreaker:${user.id}:${getClientIp(req)}`, 30, 60 * 60 * 1000)
   if (limit.limited) return jsonError('Icebreaker rate limit reached. Try again later.', 429)

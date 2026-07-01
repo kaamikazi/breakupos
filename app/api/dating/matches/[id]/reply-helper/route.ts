@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient, createServiceClient } from '@/lib/supabase-server'
 import { anthropic, extractText, ADVISOR_SYSTEM_PROMPT, SAFETY_DISCLAIMER } from '@/lib/anthropic'
-import { getClientIp, jsonError, parseJson, rateLimit } from '@/lib/api'
+import { getClientIp, jsonError, parseJson, productionAiRateLimitGuard, rateLimit } from '@/lib/api'
 import { isProUser } from '@/lib/premium'
 import { buildReplyHelperPrompt, getDeletedMessageDisplay, getOtherParticipantId, getReplyHelperFallback, isMatchParticipant, replyHelperSchema } from '@/lib/dating-chat'
 
@@ -16,6 +16,9 @@ export async function POST(req: NextRequest, { params }: ReplyHelperRouteProps) 
 
   if (!user) return jsonError('Unauthorized', 401)
   if (!(await isProUser(user.id))) return jsonError('Dating AI Reply Helper is a Pro feature.', 403)
+
+  const productionGuard = productionAiRateLimitGuard('dating-reply-helper', user.id)
+  if (productionGuard) return productionGuard
 
   const limit = await rateLimit(`dating-reply:${user.id}:${getClientIp(req)}`, 20, 60 * 60 * 1000)
   if (limit.limited) return jsonError('Reply helper rate limit reached. Try again later.', 429)

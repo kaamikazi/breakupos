@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createServerSupabaseClient, createServiceClient } from '@/lib/supabase-server'
 import { jsonError } from '@/lib/api'
 import { getPublicDisplayName, publicProfilePath } from '@/lib/social-profile'
+import { logServerError } from '@/lib/logging'
 
 export async function GET() {
   const supabase = await createServerSupabaseClient()
@@ -16,7 +17,16 @@ export async function GET() {
     .eq('blocker_user_id', user.id)
     .order('created_at', { ascending: false })
 
-  if (error) return jsonError(error.message, 500)
+  if (error) {
+    logServerError('Dating blocks query failed', {
+      route: 'dating/blocks',
+      operation: 'list_blocks',
+      code: error.code ?? 'unknown',
+      errorMessage: error.message,
+      userId: user.id,
+    })
+    return jsonError('Could not load blocked profiles right now.', 500)
+  }
 
   const blockedIds = (blocks ?? []).map(block => block.blocked_user_id)
   let { data: profiles, error: profilesError } = blockedIds.length
@@ -41,7 +51,16 @@ export async function GET() {
     profilesError = fallback.error
   }
 
-  if (profilesError) return jsonError(profilesError.message, 500)
+  if (profilesError) {
+    logServerError('Dating blocked profiles query failed', {
+      route: 'dating/blocks',
+      operation: 'list_blocked_profiles',
+      code: profilesError.code ?? 'unknown',
+      errorMessage: profilesError.message,
+      userId: user.id,
+    })
+    return jsonError('Could not load blocked profiles right now.', 500)
+  }
 
   const profileMap = new Map((profiles ?? []).map(profile => [profile.id, profile]))
   const rows = (blocks ?? []).map(block => {

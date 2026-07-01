@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { subDays, formatISO } from 'date-fns'
 import { createServerSupabaseClient, createServiceClient } from '@/lib/supabase-server'
-import { getClientIp, jsonError, parseJson, rateLimit } from '@/lib/api'
+import { getClientIp, jsonError, parseJson, productionAiRateLimitGuard, rateLimit } from '@/lib/api'
 import { isProUser } from '@/lib/premium'
 import { anthropic, extractText } from '@/lib/anthropic'
 import { fallbackWeeklySummary, summaryRequestSchema, weeklyAiSchema } from '@/lib/weekly-summary'
 import { buildNotification } from '@/lib/notifications'
 import type { Interaction, Situation } from '@/types'
+import { logServerError } from '@/lib/logging'
 
 export async function POST(req: NextRequest) {
   const supabase = await createServerSupabaseClient()
@@ -14,6 +15,9 @@ export async function POST(req: NextRequest) {
 
   if (!user) return jsonError('Unauthorized', 401)
   if (!(await isProUser(user.id))) return jsonError('Weekly AI Coach Summary is a Pro feature.', 403)
+
+  const productionGuard = productionAiRateLimitGuard('weekly-summary', user.id)
+  if (productionGuard) return productionGuard
 
   const limit = await rateLimit(`weekly:${user.id}:${getClientIp(req)}`, 8, 60 * 60 * 1000)
   if (limit.limited) return jsonError('Weekly summary rate limit reached. Try again later.', 429)
@@ -79,7 +83,16 @@ export async function POST(req: NextRequest) {
     .select()
     .single()
 
-  if (error) return jsonError(error.message, 500)
+  if (error) {
+    logServerError('Weekly summary save failed', {
+      route: 'weekly-summary/generate',
+      operation: 'upsert_weekly_summary',
+      code: error.code ?? 'unknown',
+      errorMessage: error.message,
+      userId: user.id,
+    })
+    return jsonError('Could not save the weekly summary right now.', 500)
+  }
   await serviceClient.from('notifications').insert(buildNotification({
     user_id: user.id,
     type: 'weekly_summary',

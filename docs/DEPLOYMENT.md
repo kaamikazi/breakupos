@@ -24,6 +24,8 @@ Use `.env.example` as the source template for local setup.
 | `NEXT_PUBLIC_BETA_FEEDBACK_URL` | Beta | Optional public feedback form URL shown in the app nav |
 | `ADMIN_EMAILS` | Safety | Comma-separated admin emails allowed to access `/admin/reports` |
 | `CRON_SECRET` | Scheduled jobs | Required. `/api/cron/reset-quotas` fails closed without it; Vercel Cron must send `Authorization: Bearer <CRON_SECRET>`. |
+| `UPSTASH_REDIS_REST_URL` | Production safety | Durable rate limiting for AI, chat, dating, and abuse-sensitive routes. Strongly recommended before public Discord/social launch. |
+| `UPSTASH_REDIS_REST_TOKEN` | Production safety | Required with `UPSTASH_REDIS_REST_URL`. Production AI routes fail safely if Anthropic is enabled but these durable limiter vars are missing. |
 
 ## Supabase Setup
 
@@ -32,8 +34,8 @@ Use `.env.example` as the source template for local setup.
 3. Add redirect URLs for the deployed app:
    - `https://breakupos-beta.vercel.app/auth/callback`
    - `https://breakupos-beta.vercel.app/auth/callback/client`
-4. Run `supabase/schema.sql` in the SQL editor.
-5. For incremental production rollout, also run these focused migrations if you are not rerunning the full schema:
+4. For a brand-new Supabase project, run `supabase/schema.sql` once in the SQL editor.
+5. For an existing production database, do not assume Vercel deploys update Supabase. Run only the focused migrations you need, then run the hardening migration last:
    - `supabase/public-social-profile-fields.sql`
    - `supabase/public-identity-fields.sql`
    - `supabase/block-safety-unblock.sql`
@@ -44,9 +46,9 @@ Use `.env.example` as the source template for local setup.
    - `supabase/beta-access-account-delete.sql`
    - `supabase/profile-onboarding.sql`
    - `supabase/security-hardening-beta.sql`
-6. Important: a Vercel deploy does not update Supabase tables. If production errors with `column profiles_1.username does not exist`, `column profiles_1.avatar_url does not exist`, public social names show auth/email-derived names, beta approval does not persist, or first-run onboarding cannot save preferences, run the relevant SQL migration in the Supabase SQL editor, confirm it succeeds, then redeploy or refresh the app.
+6. Important: a Vercel deploy does not update Supabase tables, RLS policies, triggers, functions, or storage buckets. If production errors with `column profiles_1.username does not exist`, `column profiles_1.avatar_url does not exist`, public social names show auth/email-derived names, beta approval does not persist, first-run onboarding cannot save preferences, or message request/chat safety behaves differently from local, run the relevant SQL migration in the Supabase SQL editor, confirm it succeeds, then redeploy or refresh the app.
 7. Before testing required first-run onboarding in production, run `supabase/profile-onboarding.sql`. It is intentionally self-contained and adds `public_display_name`, `username`, `bio`, `avatar_url`, `onboarding_reasons`, `first_goal`, `profile_completed_at`, `public_profile_visible`, the unique lowercase username index, and the own-profile update RLS policy.
-8. Before public beta traffic, run `supabase/security-hardening-beta.sql` last, after all older/schema migrations. It locks down direct `message_requests` inserts with RLS, removes direct anon insert policies for dating messages and profile likes, requires signed-in users for public profile/dating/photo reads, adds safer update `WITH CHECK` policies, and creates `refund_user_credits` for AI-credit rollback.
+8. Before public beta traffic, run `supabase/security-hardening-beta.sql` last, after all older/schema migrations. It locks down direct `message_requests` inserts with RLS, prevents message request identity/text rewrites after creation, removes direct anon insert policies for dating messages and profile likes, requires signed-in users for public profile/dating/photo reads, adds safer update `WITH CHECK` policies, and creates `refund_user_credits` for AI-credit rollback.
 9. Confirm RLS is enabled on:
    - `profiles`
    - `situations`
@@ -101,10 +103,10 @@ Use `.env.example` as the source template for local setup.
 2. New users receive a starter wallet of 10 credits.
 3. Expensive AI actions should check free quota, Pro status, or credits before calling the AI provider.
 4. Failed AI calls should record failed usage events and should not spend credits.
-5. Configure Upstash Redis env vars for durable production rate limits:
+5. Configure Upstash Redis env vars for durable production rate limits before public Discord/social launch:
    - `UPSTASH_REDIS_REST_URL`
    - `UPSTASH_REDIS_REST_TOKEN`
-6. If Upstash is missing, the app uses in-memory rate limits only, which are best-effort on serverless.
+6. If Upstash is missing in local/dev, the app uses in-memory rate limits only, which are best-effort on serverless. In production, expensive AI routes fail safely with `503` when `ANTHROPIC_API_KEY` is configured but durable Upstash limits are missing.
 
 ## PWA Setup
 
@@ -119,8 +121,8 @@ Use `.env.example` as the source template for local setup.
 2. For tonight's social profile launch, run `supabase/public-identity-fields.sql` first. It adds `profiles.public_display_name`, `username`, `avatar_url`, `bio`, `public_profile_visible`, `social_vibe`, `public_location`, and `profile_completed_at`, then backfills safe public names/usernames and creates a unique `lower(username)` index.
 3. Run `supabase/beta-access-account-delete.sql` before enabling the private beta gate. It adds `profiles.beta_approved_at`, which stores permanent per-account beta approval.
 4. Run `supabase/profile-onboarding.sql` before deploying or testing the required first-run setup flow. It adds all profile fields used by onboarding, creates `profiles_username_lower_unique`, and recreates the safe `Users can update own profile` RLS policy.
-5. Run the full `supabase/schema.sql` for new environments, or the focused migrations listed above for existing environments.
-6. Run `supabase/security-hardening-beta.sql` last before launch. Vercel deploy alone will not apply the message request RLS policies, API-only write protections for chat/likes, or AI credit refund RPC.
+5. Run the full `supabase/schema.sql` only for new/fresh environments, or the focused migrations listed above for existing environments.
+6. Run `supabase/security-hardening-beta.sql` last before launch. Vercel deploy alone will not apply the message request RLS policies, immutable request trigger, API-only write protections for chat/likes, or AI credit refund RPC.
 7. Confirm indexes were created.
 8. Confirm policies exist and do not duplicate.
 9. Smoke-test one user account before opening traffic.
@@ -214,14 +216,14 @@ Use `docs/BETA_CHECKLIST.md` for the full private beta checklist. Minimum smoke 
 
 ## Known Limitations
 
-- Rate limiting is in-memory and should move to Redis/Vercel KV for multi-instance production.
+- Rate limiting uses Upstash when configured. Do not open broad public traffic with only the local in-memory fallback.
 - Local PIN and private vault are not encrypted.
 - Screenshot OCR is not integrated yet; screenshots are not uploaded or stored.
 - Relationship reports use printable HTML with browser Save as PDF.
 - Weekly summaries are manual; cron scheduling is not implemented yet.
 - Error logging is local console-only; add Sentry or similar before scaling.
 - Realtime chat requires Supabase Realtime to be enabled for `dating_messages`; otherwise users can refresh/poll for updates.
-- Profile photos currently use public bucket URLs for beta simplicity. Move to private buckets and signed URLs before handling highly sensitive identity use cases.
+- Profile and social photos currently use public bucket URLs for beta simplicity. Deleting posts/accounts attempts to remove objects, but old public URLs may remain accessible until deletion succeeds. Move to private buckets and signed URLs before handling highly sensitive identity use cases.
 - Moderation is a foundation only: status review exists, but automated abuse detection, queues, and escalation workflows are future work.
 - Profile boost is a documented placeholder and does not change ranking yet.
 - Dating compatibility previews are heuristic, not scientific or therapeutic assessments.

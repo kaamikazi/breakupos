@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient, createServiceClient } from '@/lib/supabase-server'
 import { PROFILE_PHOTO_BUCKET } from '@/lib/dating'
 import { jsonError } from '@/lib/api'
+import { logServerError } from '@/lib/logging'
 
 interface PhotoRouteProps {
   params: Promise<{ id: string }>
@@ -30,7 +31,16 @@ export async function DELETE(_req: NextRequest, { params }: PhotoRouteProps) {
     .eq('id', id)
     .eq('user_id', user.id)
 
-  if (error) return jsonError(error.message, 500)
+  if (error) {
+    logServerError('Dating photo delete failed', {
+      route: 'dating/photos/[id]',
+      operation: 'delete_photo',
+      code: error.code ?? 'unknown',
+      errorMessage: error.message,
+      userId: user.id,
+    })
+    return jsonError('Could not delete this photo right now.', 500)
+  }
 
   if (photo.storage_path) {
     await serviceClient.storage.from(PROFILE_PHOTO_BUCKET).remove([photo.storage_path])

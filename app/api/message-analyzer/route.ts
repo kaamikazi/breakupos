@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase-server'
 import { anthropic, extractText, SAFETY_DISCLAIMER } from '@/lib/anthropic'
-import { getClientIp, jsonError, parseJson, rateLimit } from '@/lib/api'
+import { getClientIp, jsonError, parseJson, productionAiRateLimitGuard, rateLimit } from '@/lib/api'
 import { analysisSchema, analyzerInputSchema, fallbackAnalysis } from '@/lib/message-analysis'
 import { canAffordCredits, getCreditBalance, getCreditCost, recordAIUsageEvent, refundCredits, spendCredits } from '@/lib/credits'
 
@@ -10,6 +10,9 @@ export async function POST(req: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
 
   if (!user) return jsonError('Unauthorized', 401)
+
+  const productionGuard = productionAiRateLimitGuard('message-analyzer', user.id)
+  if (productionGuard) return productionGuard
 
   const limit = await rateLimit(`analyzer:${user.id}:${getClientIp(req)}`, 20, 60 * 60 * 1000)
   if (limit.limited) return jsonError('Message analyzer rate limit reached. Try again later.', 429)

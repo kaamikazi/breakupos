@@ -4,7 +4,7 @@ import { createServerSupabaseClient, createServiceClient } from '@/lib/supabase-
 import { checkAIQuota, ensureProfileForUser } from '@/lib/quota'
 import { anthropic, extractText, ADVISOR_SYSTEM_PROMPT, SAFETY_DISCLAIMER } from '@/lib/anthropic'
 import { ADVICE_TYPE_VALUES, FIELD_LIMITS } from '@/lib/domain'
-import { getClientIp, jsonError, parseJson, rateLimit } from '@/lib/api'
+import { getClientIp, jsonError, parseJson, productionAiRateLimitGuard, rateLimit } from '@/lib/api'
 import { aiActionForAdvisor, canAffordCredits, getCreditBalance, getCreditCost, recordAIUsageEvent, refundCredits, spendCredits } from '@/lib/credits'
 import { logServerError } from '@/lib/logging'
 
@@ -22,6 +22,9 @@ export async function POST(req: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
 
   if (!user) return jsonError('Unauthorized', 401)
+
+  const productionGuard = productionAiRateLimitGuard('advisor', user.id)
+  if (productionGuard) return productionGuard
 
   await ensureProfileForUser(user)
 

@@ -3,6 +3,7 @@ import { createServerSupabaseClient, createServiceClient } from '@/lib/supabase-
 import { datingProfileSchema } from '@/lib/dating'
 import { jsonError, parseJson } from '@/lib/api'
 import { normalizeUsername } from '@/lib/social-profile'
+import { logServerError } from '@/lib/logging'
 
 export async function GET() {
   const supabase = await createServerSupabaseClient()
@@ -15,8 +16,26 @@ export async function GET() {
     supabase.from('profile_photos').select('*').eq('user_id', user.id).order('position'),
   ])
 
-  if (profileError) return jsonError(profileError.message, 500)
-  if (photosError) return jsonError(photosError.message, 500)
+  if (profileError) {
+    logServerError('Dating profile fetch failed', {
+      route: 'dating/profile',
+      operation: 'fetch_profile',
+      code: profileError.code ?? 'unknown',
+      errorMessage: profileError.message,
+      userId: user.id,
+    })
+    return jsonError('Could not load your dating profile right now.', 500)
+  }
+  if (photosError) {
+    logServerError('Dating profile photos fetch failed', {
+      route: 'dating/profile',
+      operation: 'fetch_photos',
+      code: photosError.code ?? 'unknown',
+      errorMessage: photosError.message,
+      userId: user.id,
+    })
+    return jsonError('Could not load your dating profile photos right now.', 500)
+  }
 
   return NextResponse.json(profile ? { ...profile, photos: photos ?? [] } : { photos: photos ?? [] })
 }
@@ -55,7 +74,16 @@ export async function POST(req: NextRequest) {
     .select()
     .single()
 
-  if (error) return jsonError(error.message, 500)
+  if (error) {
+    logServerError('Dating profile save failed', {
+      route: 'dating/profile',
+      operation: 'upsert_profile',
+      code: error.code ?? 'unknown',
+      errorMessage: error.message,
+      userId: user.id,
+    })
+    return jsonError('Could not save your dating profile right now.', 500)
+  }
 
   const { data: existingPublicProfile } = await serviceClient
     .from('profiles')
@@ -75,10 +103,28 @@ export async function POST(req: NextRequest) {
     })
     .eq('id', user.id)
 
-  if (publicProfileError) return jsonError(publicProfileError.message, 500)
+  if (publicProfileError) {
+    logServerError('Public profile sync from dating profile failed', {
+      route: 'dating/profile',
+      operation: 'sync_public_profile',
+      code: publicProfileError.code ?? 'unknown',
+      errorMessage: publicProfileError.message,
+      userId: user.id,
+    })
+    return jsonError('Could not save your public profile right now.', 500)
+  }
 
   const deletePhotos = await serviceClient.from('profile_photos').delete().eq('user_id', user.id).eq('source', 'url')
-  if (deletePhotos.error) return jsonError(deletePhotos.error.message, 500)
+  if (deletePhotos.error) {
+    logServerError('Dating profile URL photo cleanup failed', {
+      route: 'dating/profile',
+      operation: 'delete_url_photos',
+      code: deletePhotos.error.code ?? 'unknown',
+      errorMessage: deletePhotos.error.message,
+      userId: user.id,
+    })
+    return jsonError('Could not update profile photos right now.', 500)
+  }
 
   if (photo_urls.length > 0) {
     const offset = uploadedPhotos.length
@@ -91,7 +137,16 @@ export async function POST(req: NextRequest) {
         is_primary: offset + index === 0,
       }))
     )
-    if (photoError) return jsonError(photoError.message, 500)
+    if (photoError) {
+      logServerError('Dating profile URL photo insert failed', {
+        route: 'dating/profile',
+        operation: 'insert_url_photos',
+        code: photoError.code ?? 'unknown',
+        errorMessage: photoError.message,
+        userId: user.id,
+      })
+      return jsonError('Could not save profile photos right now.', 500)
+    }
   }
 
   const { data: photos } = await serviceClient

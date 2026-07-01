@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient, createServiceClient } from '@/lib/supabase-server'
 import { datingReportSchema } from '@/lib/dating'
 import { getClientIp, jsonError, parseJson, rateLimit } from '@/lib/api'
+import { logServerError } from '@/lib/logging'
 
 export async function POST(req: NextRequest) {
   const supabase = await createServerSupabaseClient()
@@ -24,6 +25,15 @@ export async function POST(req: NextRequest) {
     details: parsed.data.details,
   })
 
-  if (error) return jsonError(error.message, 500)
+  if (error) {
+    logServerError('Dating report insert failed', {
+      route: 'dating/report',
+      operation: 'insert_report',
+      code: error.code ?? 'unknown',
+      errorMessage: error.message,
+      userId: user.id,
+    })
+    return jsonError('Could not submit this report right now.', 500)
+  }
   return NextResponse.json({ ok: true })
 }

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient, createServiceClient } from '@/lib/supabase-server'
 import { datingActionSchema } from '@/lib/dating'
 import { getClientIp, jsonError, parseJson, rateLimit } from '@/lib/api'
+import { logServerError } from '@/lib/logging'
 
 export async function POST(req: NextRequest) {
   const supabase = await createServerSupabaseClient()
@@ -24,6 +25,15 @@ export async function POST(req: NextRequest) {
       { onConflict: 'passer_user_id,passed_user_id' }
     )
 
-  if (error) return jsonError(error.message, 500)
+  if (error) {
+    logServerError('Dating pass insert failed', {
+      route: 'dating/pass',
+      operation: 'upsert_pass',
+      code: error.code ?? 'unknown',
+      errorMessage: error.message,
+      userId: user.id,
+    })
+    return jsonError('Could not save this pass right now.', 500)
+  }
   return NextResponse.json({ ok: true })
 }

@@ -666,6 +666,26 @@ CREATE POLICY "Receivers can update incoming message requests" ON message_reques
   AND status IN ('accepted', 'declined', 'blocked')
 );
 
+CREATE OR REPLACE FUNCTION prevent_message_request_identity_update()
+RETURNS trigger AS $$
+BEGIN
+  IF new.sender_id IS DISTINCT FROM old.sender_id
+    OR new.receiver_id IS DISTINCT FROM old.receiver_id
+    OR new.source_post_id IS DISTINCT FROM old.source_post_id
+    OR new.message_text IS DISTINCT FROM old.message_text THEN
+    RAISE EXCEPTION 'message request immutable fields cannot be changed';
+  END IF;
+
+  RETURN new;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS message_requests_immutable_fields ON message_requests;
+CREATE TRIGGER message_requests_immutable_fields
+BEFORE UPDATE ON message_requests
+FOR EACH ROW
+EXECUTE FUNCTION prevent_message_request_identity_update();
+
 DROP POLICY IF EXISTS "Users can view own credits" ON user_credits;
 CREATE POLICY "Users can view own credits" ON user_credits FOR SELECT USING (auth.uid() = user_id);
 DROP POLICY IF EXISTS "Users can view own credit transactions" ON credit_transactions;

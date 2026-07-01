@@ -4,6 +4,7 @@ import { jsonError } from '@/lib/api'
 import { rankDiscoveryProfiles } from '@/lib/dating'
 import { advancedDiscoveryFilterSchema, applyAdvancedFilters, canExposeWhoLikedYou, getCompatibilityPreview, getDailyLikeStatus, getDailyLikeWindow } from '@/lib/dating-premium'
 import type { DatingProfileWithPhotos } from '@/types'
+import { logServerError } from '@/lib/logging'
 
 export async function GET(req: Request) {
   const supabase = await createServerSupabaseClient()
@@ -37,7 +38,16 @@ export async function GET(req: Request) {
       .limit(50),
   ])
 
-  if (error) return jsonError(error.message, 500)
+  if (error) {
+    logServerError('Dating discovery query failed', {
+      route: 'dating/discover',
+      operation: 'list_profiles',
+      code: error.code ?? 'unknown',
+      errorMessage: error.message,
+      userId: user.id,
+    })
+    return jsonError('Could not load discovery right now.', 500)
+  }
   const isPro = accountProfile?.plan === 'pro'
   const url = new URL(req.url)
   const hasAdvancedParams = ['min_age', 'max_age', 'city', 'relationship_goal', 'shared_interests', 'min_quality', 'recently_active']
@@ -60,7 +70,16 @@ export async function GET(req: Request) {
     ? await serviceClient.from('profile_photos').select('*').in('user_id', userIds).order('position')
     : { data: [], error: null }
 
-  if (photosError) return jsonError(photosError.message, 500)
+  if (photosError) {
+    logServerError('Dating discovery photos query failed', {
+      route: 'dating/discover',
+      operation: 'list_profile_photos',
+      code: photosError.code ?? 'unknown',
+      errorMessage: photosError.message,
+      userId: user.id,
+    })
+    return jsonError('Could not load discovery photos right now.', 500)
+  }
 
   const hydratedProfiles = visibleProfiles
     .map(profile => ({

@@ -155,10 +155,12 @@ Open `http://localhost:3000`.
 | `BETA_ACCESS_ENABLED` | Beta | Enables private beta invite-code gate |
 | `BETA_ACCESS_CODE` | Beta | Server-side private beta access code |
 | `NEXT_PUBLIC_BETA_FEEDBACK_URL` | Beta | Optional public feedback form URL shown in the app nav |
+| `UPSTASH_REDIS_REST_URL` | Production safety | Durable Redis rate limiting; recommended before public beta traffic |
+| `UPSTASH_REDIS_REST_TOKEN` | Production safety | Required with `UPSTASH_REDIS_REST_URL`; production AI routes fail safely without durable limits |
 
 ## Database Setup
 
-Run [supabase/schema.sql](supabase/schema.sql) in the Supabase SQL editor.
+Run [supabase/schema.sql](supabase/schema.sql) in the Supabase SQL editor for fresh environments only. For production updates, run the focused migrations described in [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md), then run `supabase/security-hardening-beta.sql` last. Vercel deploys do not update Supabase schema, RLS policies, triggers, functions, or storage buckets.
 
 The schema includes:
 
@@ -246,7 +248,8 @@ npm.cmd run build
 - Verification is a trust badge placeholder only: users can request review, but real selfie/video or ID verification is still TODO.
 - Messaging has simple anti-spam checks for repeated identical messages and obvious low-effort spam.
 - Notifications are in-app only for new matches, new messages, report status changes, and weekly summaries. Email/push is a future integration.
-- Profile photos upload to `profile-photos`; social post photos upload to `social-posts`. The beta uses public bucket URLs for simple rendering, so old image URLs can remain directly accessible until the storage object is deleted. Storage paths are not exposed in public discovery/chat payloads.
+- Profile photos upload to `profile-photos`; social post photos upload to `social-posts`. The beta uses public bucket URLs for simple rendering, so old image URLs can remain directly accessible until the storage object is deleted. Deleting posts/accounts attempts to remove storage objects. Storage paths are not exposed in public discovery/chat payloads.
+- Expensive AI routes require durable Upstash rate limiting in production when Anthropic is enabled; otherwise they fail safely instead of relying on serverless in-memory buckets.
 - `/admin/reports` is gated by `ADMIN_EMAILS` and supports basic report status review.
 - Destructive delete-all requires an explicit confirmation payload.
 - Local PIN and private vault are convenience controls, not encryption. Treat real encrypted vault support as future work.
